@@ -152,6 +152,9 @@
   .sheet-body { padding: 18px 22px 24px; }
   .sheet-body h2 { margin: 0 0 6px; font-size: 26px; line-height: 1.1; font-stretch: 110%; font-weight: 800; }
   .sheet-body h3 { margin: 26px 0 10px; font-size: 17px; font-weight: 750; }
+  .desc { margin: 12px 0 0; font-size: 16px; max-width: 64ch; }
+  .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; }
+  .chips li { font-size: 13px; padding: 3px 9px; border-radius: 999px; background: #e4e0d2; }
   .verdict { margin: 14px 0 0; padding: 12px 14px; border-radius: 4px; background: #ebe8dc; font-size: 15px; }
   .verdict strong { font-weight: 750; }
 
@@ -218,7 +221,11 @@
         <option value="release">Plus récents</option>
       </select>
     </label>
-    <label class="field check"><input type="checkbox" id="lowOnly"> Au plus bas</label>
+    <label class="field">Genre
+      <select id="genre"><option value="">Tous</option></select>
+    </label>
+    <label class="field check"><input type="checkbox" id="lowOnly"> Plus bas historique</label>
+    <label class="field check"><input type="checkbox" id="coopOnly"> Jouable en coop</label>
     <label class="field check"><input type="checkbox" id="goodOnly"> Bien notés</label>
     <span class="count" id="count" aria-live="polite"></span>
   </div>
@@ -241,6 +248,7 @@
   const PAGE = 60;
   const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD" });
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const fmtMonth = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
   const fmtShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
   const $ = (id) => document.getElementById(id);
 
@@ -252,7 +260,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const safeUrl = (u) => /^https:\/\//.test(u || "") ? u : "#";
   const storeName = (id) => data.stores[id]?.name ?? `Boutique ${id}`;
-  const cover = (g) => g.steam_id
+  const cover = (g) => g.header ? safeUrl(g.header) : g.steam_id
     ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(g.steam_id)}/header.jpg`
     : safeUrl(g.thumb);
   const fallback = (g) => esc(safeUrl(g.thumb));
@@ -262,13 +270,17 @@
     const store = $("store").value;
     const minSave = Number($("minSave").value);
     const lowOnly = $("lowOnly").checked;
+    const genre = $("genre").value;
+    const coopOnly = $("coopOnly").checked;
     const goodOnly = $("goodOnly").checked;
 
     filtered = data.games.filter((g) =>
       (!q || g.title.toLowerCase().includes(q)) &&
       (!store || g.offers.some((o) => String(o.store_id) === store)) &&
       g.best_savings >= minSave &&
-      (!lowOnly || g.is_lowest_seen) &&
+      (!lowOnly || g.is_lowest_ever) &&
+      (!genre || (g.genres || []).includes(genre)) &&
+      (!coopOnly || g.coop) &&
       (!goodOnly || (g.steam_pct ?? 0) >= 80)
     );
 
@@ -302,7 +314,7 @@
             <span class="was">${esc(fmt.format(g.normal_price))}</span>
           </span>
           <span class="meta">
-            ${g.is_lowest_seen ? '<span class="low-badge">Plus bas prix vu</span>' : ""}
+            ${g.is_lowest_ever ? `<span class="low-badge">${g.full_history ? "Plus bas historique" : "Plus bas relevé"}</span>` : ""}
             <span>${nStores > 1 ? `${nStores} boutiques` : esc(storeName(g.offers[0].store_id))}</span>
             ${rating ? `<span>${rating}</span>` : ""}
           </span>
@@ -321,14 +333,20 @@
 
   // ---------- fiche jeu ----------
   function verdict(g) {
-    if (g.days_tracked < 7) {
+    const low = g.lowest_ever;
+    const when = g.lowest_ever_date ? fmtMonth.format(new Date(g.lowest_ever_date)) : null;
+    if (!g.full_history && g.days_tracked < 7) {
       return `On suit ce jeu depuis ${g.days_tracked} jour${g.days_tracked > 1 ? "s" : ""}. Il faut un peu plus d'historique pour juger cette promo.`;
     }
-    if (g.best_price <= g.lowest_ever) {
-      return `<strong>Bon moment pour acheter.</strong> C'est le prix le plus bas relevé en ${g.days_tracked} jours.`;
+    const scope = g.full_history ? "de son histoire" : `de nos ${g.days_tracked} jours de relevés`;
+    if (g.best_price <= low) {
+      return `<strong>Bon moment pour acheter.</strong> C'est le prix le plus bas ${scope}.`;
     }
-    const gap = ((g.best_price - g.lowest_ever) / g.lowest_ever) * 100;
-    return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(g.lowest_ever))}, soit ${Math.round(gap)} % moins cher qu'aujourd'hui.`;
+    const gap = ((g.best_price - low) / low) * 100;
+    if (gap <= 10) {
+      return `<strong>Bon prix.</strong> Très proche du plus bas ${scope} (${esc(fmt.format(low))}${when ? `, en ${when}` : ""}).`;
+    }
+    return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(low))}${when ? ` en ${when}` : ""}, soit ${Math.round(((g.best_price - low) / g.best_price) * 100)} % de moins qu'aujourd'hui.`;
   }
 
   function chartSvg(points, normal) {
@@ -377,7 +395,13 @@
         <td class="num"><a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener sponsored">Voir l'offre</a></td>
       </tr>`).join("");
 
+    const chips = [
+      ...(g.genres || []),
+      ...(g.coop ? ["Coop"] : []),
+      ...(g.multi && !g.coop ? ["Multijoueur"] : []),
+    ];
     const ratings = [
+      g.devs?.length ? `Par ${g.devs.join(", ")}` : null,
       g.steam_pct != null ? `Steam : ${g.steam_pct} % positifs (${g.steam_count.toLocaleString("fr-FR")} avis)` : null,
       g.metacritic != null ? `Metacritic : ${g.metacritic}` : null,
       g.release ? `Sortie : ${fmtDate.format(new Date(g.release))}` : null,
@@ -392,6 +416,8 @@
       <div class="sheet-body">
         <h2 id="sheet-title">${esc(g.title)}</h2>
         <div class="meta">${ratings}</div>
+        ${g.desc ? `<p class="desc">${esc(g.desc)}</p>` : ""}
+        ${chips.length ? `<ul class="chips">${chips.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
         <p class="verdict">${verdict(g)}</p>
         <h3>Prix par boutique</h3>
         <table>
@@ -431,9 +457,10 @@
     const opts = Object.entries(data.stores)
       .filter(([id]) => used.has(id))
       .sort((a, b) => a[1].name.localeCompare(b[1].name, "fr"));
+    $("genre").insertAdjacentHTML("beforeend", (data.genres || []).map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join(""));
     $("store").insertAdjacentHTML("beforeend", opts.map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)}</option>`).join(""));
 
-    for (const id of ["q", "store", "minSave", "sort", "lowOnly", "goodOnly"]) {
+    for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly"]) {
       $(id).addEventListener(id === "q" ? "input" : "change", applyFilters);
     }
     $("more").addEventListener("click", renderMore);

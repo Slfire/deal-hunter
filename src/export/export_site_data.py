@@ -57,36 +57,39 @@ WITH offers AS (
                'normal': normal_price::DOUBLE,
                'savings': savings_pct,
                'rating': deal_rating,
-               'lowest': is_lowest_seen,
+               'lowest': is_lowest_ever,
                'url': deal_url
            } ORDER BY sale_price, store_id) AS offers,
-           min(sale_price)::DOUBLE  AS best_price,
+           min(sale_price)::DOUBLE   AS best_price,
            max(normal_price)::DOUBLE AS normal_price,
-           max(savings_pct)         AS best_savings,
-           bool_or(is_lowest_seen)  AS is_lowest_seen
+           max(savings_pct)          AS best_savings,
+           bool_or(is_lowest_ever)   AS is_lowest_ever
     FROM marts.current_deals
     GROUP BY game_id
-),
-lowest AS (
-    SELECT game_id, min(sale_price)::DOUBLE AS lowest_ever, count(DISTINCT snapshot_date) AS days_tracked
-    FROM marts.fct_price_history GROUP BY game_id
 )
 SELECT
-    g.game_id          AS id,
+    g.game_id            AS id,
     g.title,
-    g.steam_app_id     AS steam_id,
-    g.release_date     AS release,
-    g.metacritic_score AS metacritic,
-    g.steam_rating_pct AS steam_pct,
+    g.steam_app_id       AS steam_id,
+    g.release_date       AS release,
+    g.metacritic_score   AS metacritic,
+    g.steam_rating_pct   AS steam_pct,
     g.steam_rating_count AS steam_count,
-    g.steam_rating_text  AS steam_text,
-    g.thumb_url        AS thumb,
-    o.best_price, o.normal_price, o.best_savings, o.is_lowest_seen,
-    l.lowest_ever, l.days_tracked,
+    g.thumb_url          AS thumb,
+    g.header_image       AS header,
+    g.description        AS "desc",
+    g.genres,
+    g.developers         AS devs,
+    g.has_coop           AS coop,
+    g.has_multi          AS multi,
+    o.best_price, o.normal_price, o.best_savings, o.is_lowest_ever,
+    g.lowest_ever_price::DOUBLE AS lowest_ever,
+    g.lowest_ever_date   AS lowest_ever_date,
+    g.has_full_history   AS full_history,
+    g.days_tracked,
     o.offers
 FROM offers o
 JOIN marts.dim_games g USING (game_id)
-JOIN lowest l USING (game_id)
 ORDER BY o.best_savings DESC, g.steam_rating_count DESC NULLS LAST
 """
 
@@ -124,6 +127,7 @@ def main() -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "snapshot_ts": to_jsonable(snapshot_ts),
         "stores": stores,
+        "genres": sorted({x for g in games for x in (g["genres"] or [])}, key=str.casefold),
         "games": games,
     })
 
@@ -133,6 +137,8 @@ def main() -> int:
     for game_id, points in by_game.items():
         dump(OUT_DIR / "history" / f"{game_id}.json", points)
 
+    genres = sorted({x for g in games for x in (g["genres"] or [])})
+    log.info("Genres disponibles : %d", len(genres))
     log.info("Export : %d jeux, %d offres, %d historiques -> %s",
              len(games), sum(len(g["offers"]) for g in games), len(by_game), OUT_DIR.relative_to(PROJECT_ROOT))
     return 0
