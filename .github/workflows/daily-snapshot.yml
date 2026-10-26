@@ -5,9 +5,6 @@ on:
     - cron: "17 5 * * *"     # tous les jours à 05:17 UTC (06:17 / 07:17 heure de Paris)
   workflow_dispatch:          # bouton "Run workflow" pour lancer à la main
 
-permissions:
-  contents: write             # nécessaire pour committer les nouveaux snapshots
-
 concurrency:
   group: daily-snapshot       # jamais deux runs en même temps
   cancel-in-progress: false
@@ -16,10 +13,12 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write         # committer les nouveaux snapshots
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -32,8 +31,11 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/snapshot.py --max-pages 0
 
-      - name: Construire le warehouse (contrôle que le brut est exploitable)
+      - name: Construire le warehouse
         run: python src/transform/build_warehouse.py
+
+      - name: Exporter les données du site
+        run: python src/export/export_site_data.py
 
       - name: Committer le snapshot du jour
         run: |
@@ -46,3 +48,22 @@ jobs:
             git commit -m "data: snapshot $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Préparer le site pour GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: snapshot
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publier sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal Hunter</title>
+<meta name="description" content="Les promos sur les jeux PC, comparées entre boutiques, avec l'historique des prix pour savoir si c'est vraiment le bon moment d'acheter.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --shelf: #1d2742;        /* fond : le rayon */
+    --shelf-2: #26324f;
+    --tag: #f6f4ec;          /* l'étiquette */
+    --ink: #1a1c24;
+    --ink-soft: #5c6070;
+    --sticker: #ffd23f;      /* pastille promo */
+    --low: #1f9d5c;          /* plus bas prix vu */
+    --line: #d9d5c7;
+    --focus: #7cc4ff;
+    --radius-tag: 6px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--shelf);
+    color: var(--tag);
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    overflow-x: clip;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+
+  /* ---------- en-tête ---------- */
+  header { padding: 48px 0 28px; }
+  h1 {
+    margin: 0;
+    font-size: clamp(44px, 9vw, 112px);
+    line-height: .88;
+    font-weight: 800;
+    font-stretch: 125%;
+    letter-spacing: -.02em;
+  }
+  .lede { margin: 18px 0 0; max-width: 56ch; color: #c9cfdf; font-size: 18px; }
+  .stamp { margin-top: 10px; color: #8f98b3; font-size: 14px; }
+
+  /* ---------- filtres ---------- */
+  .filters {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--shelf);
+    border-bottom: 1px solid var(--shelf-2);
+    padding: 12px 0;
+  }
+  .filters .wrap { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #aeb6cc; }
+  .field.grow { flex: 1 1 220px; }
+  input[type=search], select {
+    font: inherit; font-size: 15px;
+    color: var(--ink); background: var(--tag);
+    border: 0; border-radius: 4px;
+    padding: 9px 10px; min-height: 40px;
+  }
+  .check { flex-direction: row; align-items: center; gap: 8px; font-size: 15px; color: var(--tag); min-height: 40px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--sticker); }
+  .count { margin-left: auto; font-size: 14px; color: #aeb6cc; min-height: 40px; display: flex; align-items: center; }
+
+  /* ---------- grille d'étiquettes ---------- */
+  main { padding: 24px 0 64px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 22px 18px;
+  }
+  .tag {
+    position: relative;
+    display: flex; flex-direction: column;
+    background: var(--tag); color: var(--ink);
+    border-radius: var(--radius-tag);
+    text-align: left; font: inherit;
+    border: 0; padding: 0; cursor: pointer;
+    overflow: visible;
+  }
+  /* le trou de l'étiquette */
+  .tag::before {
+    content: ""; position: absolute; top: 9px; left: 50%;
+    width: 12px; height: 12px; margin-left: -6px;
+    border-radius: 50%; background: var(--shelf);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.35);
+    z-index: 2;
+  }
+  .tag .cover {
+    display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover;
+    border-radius: var(--radius-tag) var(--radius-tag) 0 0;
+    background: #c9c5b6;
+  }
+  .tag .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .tag .title {
+    margin: 0; font-size: 16px; line-height: 1.2; font-weight: 650;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: auto; }
+  .price {
+    font-size: 40px; line-height: 1; font-weight: 800; font-stretch: 62%;
+    letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+  }
+  .was { color: var(--ink-soft); text-decoration: line-through; font-size: 15px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--ink-soft); }
+  .low-badge { color: var(--low); font-weight: 700; }
+
+  /* la pastille promo : le seul élément « bruyant » de la page */
+  .sticker {
+    position: absolute; top: -10px; right: -8px; z-index: 3;
+    width: 66px; height: 66px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--sticker); color: var(--ink);
+    font-weight: 800; font-stretch: 75%; font-size: 21px; letter-spacing: -.02em;
+    transform: rotate(-12deg);
+    box-shadow: 0 2px 0 rgba(0,0,0,.25);
+  }
+  .sticker.big { top: 12px; right: 12px; width: 74px; height: 74px; font-size: 24px; }
+
+  .more { display: block; margin: 32px auto 0; }
+  .btn {
+    font: inherit; font-weight: 700; font-size: 15px;
+    background: var(--sticker); color: var(--ink);
+    border: 0; border-radius: 4px; padding: 11px 18px; cursor: pointer;
+  }
+  .btn.ghost { background: transparent; color: var(--tag); box-shadow: inset 0 0 0 1.5px #56607e; }
+
+  .empty { padding: 48px 0; color: #c9cfdf; font-size: 18px; }
+
+  /* ---------- fiche jeu ---------- */
+  dialog {
+    width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
+    padding: 0; border: 0; border-radius: 8px;
+    background: var(--tag); color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(10, 14, 28, .72); }
+  .sheet-head { position: relative; }
+  .sheet-head img { display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 8px 8px 0 0; background: #c9c5b6; }
+  .close {
+    position: absolute; top: 10px; left: 10px;
+    font: inherit; font-size: 15px; font-weight: 700;
+    background: var(--tag); color: var(--ink); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer;
+  }
+  .sheet-body { padding: 18px 22px 24px; }
+  .sheet-body h2 { margin: 0 0 6px; font-size: 26px; line-height: 1.1; font-stretch: 110%; font-weight: 800; }
+  .sheet-body h3 { margin: 26px 0 10px; font-size: 17px; font-weight: 750; }
+  .verdict { margin: 14px 0 0; padding: 12px 14px; border-radius: 4px; background: #ebe8dc; font-size: 15px; }
+  .verdict strong { font-weight: 750; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 600; font-size: 13px; color: var(--ink-soft); padding: 0 8px 6px 0; }
+  td { padding: 9px 8px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+  td.num, th.num { text-align: right; }
+  .store { display: flex; align-items: center; gap: 8px; }
+  .store img { width: 16px; height: 16px; }
+  td a { font-weight: 700; }
+  tr.best td { font-weight: 700; }
+
+  .chart { width: 100%; height: auto; display: block; }
+  .chart-note { font-size: 14px; color: var(--ink-soft); margin: 6px 0 0; }
+
+  footer { padding: 28px 0 40px; color: #8f98b3; font-size: 14px; border-top: 1px solid var(--shelf-2); }
+
+  @media (max-width: 560px) {
+    header { padding-top: 32px; }
+    .count { margin-left: 0; width: 100%; min-height: 0; }
+    .filters { position: static; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+    .tag .body { padding: 10px 10px 12px; }
+    .price { font-size: 30px; }
+    .sticker { width: 50px; height: 50px; font-size: 16px; right: -4px; }
+    .sheet-body { padding: 16px; }
+  }
+  @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .tag { transition: transform .12s ease; }
+    .tag:hover { transform: translateY(-3px); }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <h1>Deal Hunter</h1>
+  <p class="lede">Les promos sur les jeux PC, comparées entre une trentaine de boutiques. Chaque jour, on note les prix pour te dire si une promo est vraiment la meilleure.</p>
+  <p class="stamp" id="stamp">Chargement des prix…</p>
+</header>
+
+<div class="filters" role="search">
+  <div class="wrap">
+    <label class="field grow">Rechercher un jeu
+      <input type="search" id="q" placeholder="Hades, Frosthaven, Elden Ring…" autocomplete="off">
+    </label>
+    <label class="field">Boutique
+      <select id="store"><option value="">Toutes</option></select>
+    </label>
+    <label class="field">Réduction
+      <select id="minSave">
+        <option value="0">Toutes</option>
+        <option value="50">−50 % et plus</option>
+        <option value="75">−75 % et plus</option>
+        <option value="90">−90 % et plus</option>
+      </select>
+    </label>
+    <label class="field">Trier par
+      <select id="sort">
+        <option value="savings">Plus grosse réduction</option>
+        <option value="price">Prix le plus bas</option>
+        <option value="rating">Mieux notés sur Steam</option>
+        <option value="release">Plus récents</option>
+      </select>
+    </label>
+    <label class="field check"><input type="checkbox" id="lowOnly"> Au plus bas</label>
+    <label class="field check"><input type="checkbox" id="goodOnly"> Bien notés</label>
+    <span class="count" id="count" aria-live="polite"></span>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="grid" id="grid"></div>
+  <p class="empty" id="empty" hidden>Aucun jeu ne correspond. Élargis la réduction ou retire un filtre.</p>
+  <button class="btn ghost more" id="more" hidden>Afficher 60 jeux de plus</button>
+</main>
+
+<footer class="wrap">
+  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix sont en dollars US, tels qu'affichés par les boutiques.
+</footer>
+
+<dialog id="sheet" aria-labelledby="sheet-title"></dialog>
+
+<script>
+(() => {
+  const PAGE = 60;
+  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD" });
+  const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const fmtShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+  const $ = (id) => document.getElementById(id);
+
+  let data = { games: [], stores: {} };
+  let filtered = [];
+  let shown = 0;
+
+  // Tout ce qui vient de l'API passe par esc() avant d'aller dans le HTML.
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const safeUrl = (u) => /^https:\/\//.test(u || "") ? u : "#";
+  const storeName = (id) => data.stores[id]?.name ?? `Boutique ${id}`;
+  const cover = (g) => g.steam_id
+    ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(g.steam_id)}/header.jpg`
+    : safeUrl(g.thumb);
+  const fallback = (g) => esc(safeUrl(g.thumb));
+
+  function applyFilters() {
+    const q = $("q").value.trim().toLowerCase();
+    const store = $("store").value;
+    const minSave = Number($("minSave").value);
+    const lowOnly = $("lowOnly").checked;
+    const goodOnly = $("goodOnly").checked;
+
+    filtered = data.games.filter((g) =>
+      (!q || g.title.toLowerCase().includes(q)) &&
+      (!store || g.offers.some((o) => String(o.store_id) === store)) &&
+      g.best_savings >= minSave &&
+      (!lowOnly || g.is_lowest_seen) &&
+      (!goodOnly || (g.steam_pct ?? 0) >= 80)
+    );
+
+    const by = $("sort").value;
+    const cmp = {
+      savings: (a, b) => b.best_savings - a.best_savings,
+      price: (a, b) => a.best_price - b.best_price,
+      rating: (a, b) => (b.steam_pct ?? -1) - (a.steam_pct ?? -1) || (b.steam_count ?? 0) - (a.steam_count ?? 0),
+      release: (a, b) => (b.release ?? "").localeCompare(a.release ?? ""),
+    }[by];
+    filtered.sort(cmp);
+
+    $("grid").innerHTML = "";
+    shown = 0;
+    renderMore();
+    $("count").textContent = `${filtered.length} jeu${filtered.length > 1 ? "x" : ""}`;
+    $("empty").hidden = filtered.length > 0;
+  }
+
+  function cardHtml(g, i) {
+    const nStores = g.offers.length;
+    const rating = g.steam_pct != null ? `Steam ${g.steam_pct} %` : "";
+    return `
+      <button class="tag" data-i="${i}" aria-label="${esc(g.title)}, ${esc(fmt.format(g.best_price))}, moins ${Math.round(g.best_savings)} pour cent">
+        <span class="sticker">−${Math.round(g.best_savings)}%</span>
+        <img class="cover" loading="lazy" alt="" src="${esc(cover(g))}" onerror="this.onerror=null;this.src='${fallback(g)}'">
+        <span class="body">
+          <span class="title">${esc(g.title)}</span>
+          <span class="price-row">
+            <span class="price">${esc(fmt.format(g.best_price))}</span>
+            <span class="was">${esc(fmt.format(g.normal_price))}</span>
+          </span>
+          <span class="meta">
+            ${g.is_lowest_seen ? '<span class="low-badge">Plus bas prix vu</span>' : ""}
+            <span>${nStores > 1 ? `${nStores} boutiques` : esc(storeName(g.offers[0].store_id))}</span>
+            ${rating ? `<span>${rating}</span>` : ""}
+          </span>
+        </span>
+      </button>`;
+  }
+
+  function renderMore() {
+    const slice = filtered.slice(shown, shown + PAGE);
+    $("grid").insertAdjacentHTML("beforeend", slice.map((g, k) => cardHtml(g, shown + k)).join(""));
+    shown += slice.length;
+    const left = filtered.length - shown;
+    $("more").hidden = left <= 0;
+    $("more").textContent = `Afficher ${Math.min(PAGE, left)} jeux de plus`;
+  }
+
+  // ---------- fiche jeu ----------
+  function verdict(g) {
+    if (g.days_tracked < 7) {
+      return `On suit ce jeu depuis ${g.days_tracked} jour${g.days_tracked > 1 ? "s" : ""}. Il faut un peu plus d'historique pour juger cette promo.`;
+    }
+    if (g.best_price <= g.lowest_ever) {
+      return `<strong>Bon moment pour acheter.</strong> C'est le prix le plus bas relevé en ${g.days_tracked} jours.`;
+    }
+    const gap = ((g.best_price - g.lowest_ever) / g.lowest_ever) * 100;
+    return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(g.lowest_ever))}, soit ${Math.round(gap)} % moins cher qu'aujourd'hui.`;
+  }
+
+  function chartSvg(points, normal) {
+    // prix minimum du jour, toutes boutiques confondues
+    const byDay = new Map();
+    for (const p of points) byDay.set(p.d, Math.min(byDay.get(p.d) ?? Infinity, p.p));
+    const days = [...byDay.keys()].sort();
+    if (days.length < 2) return null;
+
+    const W = 700, H = 220, L = 54, R = 12, T = 12, B = 30;
+    const vals = days.map((d) => byDay.get(d));
+    const max = Math.max(normal, ...vals) * 1.05;
+    const min = 0;
+    const x = (i) => L + (i / (days.length - 1)) * (W - L - R);
+    const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
+
+    // ligne en escalier : un prix reste valable jusqu'au relevé suivant
+    let d = `M${x(0)},${y(vals[0])}`;
+    for (let i = 1; i < vals.length; i++) d += ` H${x(i)} V${y(vals[i])}`;
+    const lowest = Math.min(...vals);
+    const iLow = vals.lastIndexOf(lowest);
+
+    const ticks = [0, Math.round(max / 2), Math.round(max)];
+    const xLabels = [0, Math.floor((days.length - 1) / 2), days.length - 1];
+
+    return `
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du meilleur prix sur ${days.length} jours">
+        ${ticks.map((t) => `
+          <line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#d9d5c7"/>
+          <text x="${L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="12" fill="#5c6070">${t} $</text>`).join("")}
+        <line x1="${L}" x2="${W - R}" y1="${y(normal)}" y2="${y(normal)}" stroke="#5c6070" stroke-dasharray="4 4"/>
+        <text x="${W - R}" y="${y(normal) - 6}" text-anchor="end" font-size="12" fill="#5c6070">Prix normal</text>
+        <path d="${d}" fill="none" stroke="#1a1c24" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="${x(iLow)}" cy="${y(lowest)}" r="5" fill="#1f9d5c"/>
+        ${xLabels.map((i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === days.length - 1 ? "end" : "middle"}" font-size="12" fill="#5c6070">${fmtShort.format(new Date(days[i]))}</text>`).join("")}
+      </svg>`;
+  }
+
+  async function openSheet(g) {
+    const sheet = $("sheet");
+    const rows = g.offers.map((o, k) => `
+      <tr class="${k === 0 ? "best" : ""}">
+        <td><span class="store">${data.stores[o.store_id]?.icon ? `<img alt="" src="${esc(safeUrl(data.stores[o.store_id].icon))}">` : ""}${esc(storeName(o.store_id))}</span></td>
+        <td class="num">${esc(fmt.format(o.price))}</td>
+        <td class="num">−${Math.round(o.savings)} %</td>
+        <td class="num"><a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener sponsored">Voir l'offre</a></td>
+      </tr>`).join("");
+
+    const ratings = [
+      g.steam_pct != null ? `Steam : ${g.steam_pct} % positifs (${g.steam_count.toLocaleString("fr-FR")} avis)` : null,
+      g.metacritic != null ? `Metacritic : ${g.metacritic}` : null,
+      g.release ? `Sortie : ${fmtDate.format(new Date(g.release))}` : null,
+    ].filter(Boolean).map(esc).join("<br>");
+
+    sheet.innerHTML = `
+      <div class="sheet-head">
+        <img alt="" src="${esc(cover(g))}" onerror="this.onerror=null;this.src='${fallback(g)}'">
+        <button class="close" id="close">Fermer</button>
+        <span class="sticker big">−${Math.round(g.best_savings)}%</span>
+      </div>
+      <div class="sheet-body">
+        <h2 id="sheet-title">${esc(g.title)}</h2>
+        <div class="meta">${ratings}</div>
+        <p class="verdict">${verdict(g)}</p>
+        <h3>Prix par boutique</h3>
+        <table>
+          <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th class="num"><span hidden>Lien</span></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <h3>Historique du meilleur prix</h3>
+        <div id="chart"><p class="chart-note">Chargement de l'historique…</p></div>
+      </div>`;
+    $("close").onclick = () => sheet.close();
+    sheet.showModal();
+
+    try {
+      const res = await fetch(`data/history/${g.id}.json`);
+      if (!res.ok) throw new Error(res.status);
+      const svg = chartSvg(await res.json(), g.normal_price);
+      $("chart").innerHTML = svg ?? `<p class="chart-note">Un seul relevé pour l'instant. La courbe apparaîtra dès demain.</p>`;
+    } catch {
+      $("chart").innerHTML = `<p class="chart-note">Historique indisponible pour ce jeu.</p>`;
+    }
+  }
+
+  // ---------- démarrage ----------
+  async function init() {
+    try {
+      const res = await fetch("data/deals.json", { cache: "no-cache" });
+      if (!res.ok) throw new Error(res.status);
+      data = await res.json();
+    } catch {
+      $("stamp").textContent = "Impossible de charger les prix. Recharge la page dans quelques minutes.";
+      return;
+    }
+
+    $("stamp").textContent = `${data.games.length} jeux en promo, prix relevés le ${fmtDate.format(new Date(data.snapshot_ts))}.`;
+
+    const used = new Set(data.games.flatMap((g) => g.offers.map((o) => String(o.store_id))));
+    const opts = Object.entries(data.stores)
+      .filter(([id]) => used.has(id))
+      .sort((a, b) => a[1].name.localeCompare(b[1].name, "fr"));
+    $("store").insertAdjacentHTML("beforeend", opts.map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)}</option>`).join(""));
+
+    for (const id of ["q", "store", "minSave", "sort", "lowOnly", "goodOnly"]) {
+      $(id).addEventListener(id === "q" ? "input" : "change", applyFilters);
+    }
+    $("more").addEventListener("click", renderMore);
+    $("grid").addEventListener("click", (e) => {
+      const card = e.target.closest(".tag");
+      if (card) openSheet(filtered[Number(card.dataset.i)]);
+    });
+    $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sheet").close(); });
+
+    applyFilters();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
