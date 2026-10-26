@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 75
     permissions:
       contents: write         # committer les nouveaux snapshots
-      models: read            # GitHub Models (résumés IA des avis), gratuit avec le GITHUB_TOKEN
+      models: read            # GitHub Models (« Le jeu en bref »), gratuit avec le GITHUB_TOKEN
     steps:
       - uses: actions/checkout@v5
 
@@ -64,18 +64,12 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/steam_prices.py
 
-      - name: Avis des joueurs Steam
-        continue-on-error: true
-        env:
-          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
-        run: python src/ingestion/steam_reviews.py --max-new 150
-
-      - name: Résumés IA des avis (GitHub Models)
+      - name: « Le jeu en bref » par IA (GitHub Models)
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEALHUNTER_LLM_MODEL: ${{ vars.DEALHUNTER_LLM_MODEL }}
-        run: python src/ml/summarize_reviews.py --max-new 100
+        run: python src/ml/game_briefs.py --max-new 100
 
       # ---------- transformation ----------
       - name: Construire le warehouse (chargement + dbt build)

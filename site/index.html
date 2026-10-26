@@ -84,15 +84,13 @@
   .sale-banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: var(--shelf-2); color: var(--tag); max-width: 64ch; font-size: 15px; }
   .sale-banner strong { color: var(--sticker); }
   .foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; }
-  .reviews { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
-  .reviews h4 { margin: 0 0 4px; font-size: 15px; }
-  .reviews ul { margin: 0; padding-left: 18px; font-size: 15px; }
+  .brief { margin: 8px 0 0; padding-left: 18px; font-size: 15px; }
   .ai-note { font-size: 13px; color: var(--ink-soft); margin: 8px 0 0; }
   .similar { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
   .similar button { width: 100%; text-align: left; font: inherit; font-size: 15px; font-weight: 650; padding: 9px 12px; border: 0; border-radius: 4px; background: #ebe8dc; color: var(--ink); cursor: pointer; }
   .similar button span { display: block; font-weight: 400; font-size: 13px; color: var(--ink-soft); }
   .share { display: inline-block; margin: 14px 0 0 12px; font-size: 15px; }
-  @media (max-width: 560px) { .reviews { grid-template-columns: 1fr; } .share { margin-left: 0; display: block; } }
+  @media (max-width: 560px) { .share { margin-left: 0; display: block; } }
   .ai-toggle { font-weight: 650; }
   .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: #c9cfdf; }
   .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--sticker); }
@@ -277,7 +275,7 @@
 </main>
 
 <footer class="wrap">
-  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>, résumés des avis générés par IA.
+  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>, résumés « Le jeu en bref » générés par IA à partir des fiches Steam.
   <p class="foot-links"><a href="sante.html">Santé du pipeline</a> <a href="docs/">Documentation des données</a> <a href="https://github.com/Slfire/deal-hunter">Code source</a></p>
 </footer>
 
@@ -740,14 +738,11 @@
         ${g.eur != null ? `<p class="desc">Sur Steam France : <strong>${esc(fmtEur.format(g.eur))}</strong>${g.eur_normal && g.eur_normal > g.eur ? ` au lieu de ${esc(fmtEur.format(g.eur_normal))}` : ""}.</p>` : ""}
         <button class="follow" id="follow" aria-pressed="${wish.has(g.id)}">${wish.has(g.id) ? "Suivi : retirer de ma liste" : "Suivre ce jeu"}</button>
         <a class="share" href="jeu/${g.id}-${encodeURIComponent(g.slug || "jeu")}.html">Page à partager</a>
-        ${g.reviews ? `
-        <h3>Ce qu'en disent les joueurs</h3>
-        <p class="desc">${esc(g.reviews.tldr)}</p>
-        <div class="reviews">
-          <div><h4>Ils aiment</h4><ul>${(g.reviews.likes || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>Rien de marquant.</li>"}</ul></div>
-          <div><h4>Ils regrettent</h4><ul>${(g.reviews.dislikes || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>Rien de marquant.</li>"}</ul></div>
-        </div>
-        <p class="ai-note">Résumé généré par IA à partir de ${g.reviews.n || "plusieurs"} avis Steam.</p>` : ""}
+        ${g.brief ? `
+        <h3>Le jeu en bref</h3>
+        <p class="desc">${esc(g.brief.summary)}${g.brief.for_whom ? ` ${esc(g.brief.for_whom)}` : ""}</p>
+        ${(g.brief.points || []).length ? `<ul class="brief">${g.brief.points.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        <p class="ai-note">Résumé généré par IA à partir de la fiche Steam et des tags des joueurs. Ce n'est pas un avis.</p>` : ""}
         <h3>Prix par boutique</h3>
         <table>
           <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th class="num"><span hidden>Lien</span></th></tr></thead>

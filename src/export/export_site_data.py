@@ -105,10 +105,9 @@ SELECT
     g.has_multi          AS multi,
     g.steam_price_eur    AS eur,
     g.steam_normal_eur   AS eur_normal,
-    CASE WHEN g.reviews_tldr IS NOT NULL THEN {
-        'likes': g.reviews_likes, 'dislikes': g.reviews_dislikes,
-        'tldr': g.reviews_tldr, 'n': g.reviews_count
-    } END                AS reviews,
+    CASE WHEN g.brief_summary IS NOT NULL THEN {
+        'summary': g.brief_summary, 'for_whom': g.brief_for_whom, 'points': g.brief_points
+    } END                AS brief,
     o.best_price, o.normal_price, o.best_savings, o.is_lowest_ever,
     g.lowest_ever_price::DOUBLE AS lowest_ever,
     g.lowest_ever_date   AS lowest_ever_date,

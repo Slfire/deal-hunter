@@ -11,7 +11,7 @@ import build_pages
 import embed_games
 import export_site_data
 import notify_discord
-import summarize_reviews
+import game_briefs
 
 
 # ---------- jeux similaires ----------
@@ -23,34 +23,57 @@ def test_similar_games_skips_editions_of_the_same_game():
     assert 2 not in sims[1] and 1 not in sims[1]
 
 
-# ---------- résumés IA ----------
+# ---------- « Le jeu en bref » (IA) ----------
 def test_clean_bounds_model_output():
-    out = summarize_reviews.clean({"aime": ["a" * 500, "", "b", "c", "d"], "regrette": "pas une liste", "en_bref": "ok"})
-    assert len(out["aime"]) == 3 and len(out["aime"][0]) == summarize_reviews.MAX_LEN
-    assert out["regrette"] == [] and out["en_bref"] == "ok"
+    out = game_briefs.clean({"en_bref": "x" * 500, "pour_qui": "Pour les fans.", "points": ["a" * 500, "", "b", "c", "d"]})
+    assert len(out["en_bref"]) == 220 and out["pour_qui"] == "Pour les fans."
+    assert len(out["points"]) == 3 and len(out["points"][0]) == game_briefs.MAX_LEN
+    assert game_briefs.clean({"points": "pas une liste"})["points"] == []
 
 
-def test_summarize_calls_github_models_and_parses_json():
+def test_game_source_uses_only_official_sheet_and_tags(tmp_path, monkeypatch):
+    import gzip
+    monkeypatch.setattr(game_briefs, "STEAM_DIR", tmp_path / "steam")
+    monkeypatch.setattr(game_briefs, "SPY_DIR", tmp_path / "steamspy")
+    (tmp_path / "steam").mkdir(); (tmp_path / "steamspy").mkdir()
+    sheet = {"10": {"success": True, "data": {"name": "Hades", "short_description": "Défie le dieu des morts dans ce rogue-like.",
+                                             "genres": [{"description": "Action"}], "categories": [{"description": "Solo"}],
+                                             "developers": ["Supergiant"]}}}
+    json.dump(sheet, gzip.open(tmp_path / "steam/10.json.gz", "wt"))
+    json.dump({"appid": 10, "tags": {"Roguelike": 900, "Difficult": 400}}, gzip.open(tmp_path / "steamspy/10.json.gz", "wt"))
+    src = game_briefs.game_source("10")
+    assert src["tags_joueurs"] == ["Roguelike", "Difficult"] and src["developpeurs"] == ["Supergiant"]
+    h = game_briefs.source_hash(src)
+    assert h == game_briefs.source_hash(dict(src))                       # stable
+    src2 = {**src, "tags_joueurs": ["Roguelike"]}
+    assert game_briefs.source_hash(src2) != h                            # change si la source change
+    # fiche trop pauvre ou jeu introuvable : pas de résumé
+    json.dump({"11": {"success": True, "data": {"short_description": "Court."}}}, gzip.open(tmp_path / "steam/11.json.gz", "wt"))
+    json.dump({"12": {"success": False}}, gzip.open(tmp_path / "steam/12.json.gz", "wt"))
+    assert game_briefs.game_source("11") is None and game_briefs.game_source("12") is None and game_briefs.game_source("99") is None
+
+
+def test_generate_calls_github_models_and_parses_json():
     class Resp:
         status_code = 200
 
         def json(self):
             return {"choices": [{"message": {"content": json.dumps(
-                {"aime": ["Combats nerveux"], "regrette": ["Fin abrupte"], "en_bref": "Pour les fans de roguelike."})}}]}
+                {"en_bref": "Un roguelike d'action.", "pour_qui": "Pour les amateurs de défi.", "points": ["Combats rapides"]})}}]}
 
     class Session:
         def post(self, url, json, timeout):
-            assert url == summarize_reviews.ENDPOINT
+            assert url == game_briefs.ENDPOINT
             assert json["response_format"] == {"type": "json_object"}
-            assert "Jeu : Hades" in json["messages"][1]["content"]
+            assert "ne prétends jamais" in json["messages"][0]["content"]
+            assert "Hades" in json["messages"][1]["content"]
             return Resp()
 
-    reviews = [{"text": "Super jeu", "positive": True, "hours": 12.5}] * 5
-    out = summarize_reviews.summarize(Session(), "openai/gpt-4.1-mini", "Hades", reviews)
-    assert out["aime"] == ["Combats nerveux"]
+    out = game_briefs.generate(Session(), "openai/gpt-4.1-mini", {"titre": "Hades", "description": "..."})
+    assert out["points"] == ["Combats rapides"]
 
 
-def test_summarize_stops_on_quota():
+def test_generate_stops_on_quota():
     class Resp:
         status_code, text = 429, "rate limit"
 
@@ -58,8 +81,8 @@ def test_summarize_stops_on_quota():
         def post(self, *a, **k):
             return Resp()
 
-    with pytest.raises(summarize_reviews.QuotaReached):
-        summarize_reviews.summarize(Session(), "m", "Jeu", [])
+    with pytest.raises(game_briefs.QuotaReached):
+        game_briefs.generate(Session(), "m", {})
 
 
 # ---------- Discord ----------
@@ -107,7 +130,7 @@ def test_game_page_has_seo_and_share_metadata_and_escapes():
     g = _game(7, title='Rock & Roll <script>alert(1)</script>', lowest_ever=2.99, lowest_ever_date="2021-11-20",
               days_tracked=3, header="https://example.com/h.jpg", desc="Un jeu.", genres=["Action"], coop=True,
               offers=[{"store_id": 1, "price": 4.99, "savings": 75.0, "url": "https://www.cheapshark.com/redirect?dealID=x"}],
-              reviews={"tldr": "Pour les fans.", "likes": ["Rythme"], "dislikes": [], "n": 25})
+              brief={"summary": "Un jeu de rythme.", "for_whom": "Pour les fans.", "points": ["Rythme"]})
     html = build_pages.render(g, {"1": {"name": "Steam"}}, [], [], "26 octobre 2026")
     assert "<script>alert(1)</script>" not in html
     c = _Checker()
@@ -115,7 +138,7 @@ def test_game_page_has_seo_and_share_metadata_and_escapes():
     assert c.metas["og:image"] == "https://example.com/h.jpg"
     assert "Tu peux attendre" in c.metas["og:description"] and "novembre 2021" in html
     assert "4,99 $" in c.title
-    assert "Ils aiment" in html and "Rien de marquant" in html
+    assert "Le jeu en bref" in html and "Ce n'est pas un avis" in html
 
 
 def test_verdict_matches_site_logic():

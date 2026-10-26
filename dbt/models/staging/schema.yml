@@ -51,8 +51,8 @@ models:
               arguments:
                 values: ["EUR"]
 
-  - name: stg_review_summaries
-    description: "Résumés IA des avis Steam (GitHub Models)"
+  - name: stg_game_briefs
+    description: "« Le jeu en bref » : résumé IA de la fiche Steam et des tags joueurs (GitHub Models)"
     columns:
       - name: steam_app_id
         tests: [unique, not_null]

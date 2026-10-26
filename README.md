@@ -1,6 +1,6 @@
 # Deal Hunter
 
-Les promos sur les jeux PC, comparées entre une trentaine de boutiques, avec l'historique des prix pour savoir si une promo vaut vraiment le coup, une recherche en langage naturel (« un roguelike pas cher pour jouer à deux ») et un résumé IA de ce que les joueurs pensent de chaque jeu.
+Les promos sur les jeux PC, comparées entre une trentaine de boutiques, avec l'historique des prix pour savoir si une promo vaut vraiment le coup, une recherche en langage naturel (« un roguelike pas cher pour jouer à deux ») et un résumé IA « Le jeu en bref » pour chaque jeu.
 
 **Site : https://slfire.github.io/deal-hunter/** · [Les chiffres du marché](https://slfire.github.io/deal-hunter/insights.html) · [Santé du pipeline](https://slfire.github.io/deal-hunter/sante.html) · [Documentation des données](https://slfire.github.io/deal-hunter/docs/) · [Flux RSS](https://slfire.github.io/deal-hunter/feed.xml)
 
@@ -12,7 +12,7 @@ Le projet est un pipeline de données complet qui tourne seul chaque matin, sans
 flowchart LR
     subgraph Sources
         CS[CheapShark<br/>deals, boutiques,<br/>plus bas historique]
-        ST[Steam<br/>fiches FR, prix en euros,<br/>avis des joueurs]
+        ST[Steam<br/>fiches FR, prix en euros]
         SP[SteamSpy<br/>tags joueurs]
         VC[Calendrier<br/>des soldes Valve]
     end
@@ -20,7 +20,7 @@ flowchart LR
     subgraph "GitHub Actions — chaque matin"
         ING[Ingestion Python]
         RAW[(data/raw + data/ref<br/>JSON brut gzip<br/>versionné dans git)]
-        LLM[GitHub Models<br/>résumés des avis]
+        LLM[GitHub Models<br/>« Le jeu en bref »]
         DBT[DuckDB + dbt<br/>raw → staging → marts<br/>+ tests de qualité]
         EMB[Embeddings e5-small<br/>recherche + similaires]
         PUB[Export JSON, pages jeux,<br/>RSS, sitemap, santé, doc dbt]
@@ -41,11 +41,11 @@ flowchart LR
 | Étape | Ce qu'elle fait | Code |
 |---|---|---|
 | Ingestion | Snapshot quotidien des ~3 000 deals (pagination, retry/backoff, User-Agent identifié), plus bas historique par lots de 25, prix Steam en euros par lots de 50 | `src/ingestion/` |
-| Référentiels | Fiches Steam, tags SteamSpy, avis Steam : caches incrémentaux bornés par run, reprise propre si la source tombe | `src/ingestion/common.py` |
+| Référentiels | Fiches Steam, tags SteamSpy : caches incrémentaux bornés par run, réponses inattendues sautées, arrêt propre si la source tombe | `src/ingestion/common.py` |
 | Stockage brut | Réponses des API gardées telles quelles, compressées, horodatées par le chemin : tout peut être rejoué | `data/raw/`, `data/ref/` |
 | Modélisation | Chargement idempotent (`raw._loaded_files`), puis dbt : `staging` (typage, faux zéros → NULL, dédoublonnage) et `marts` | `src/transform/`, `dbt/` |
 | Qualité | 31 tests dbt (unicité, non-nullité, relations, grain de l'historique, cohérence des prix) + 22 tests pytest en CI | `dbt/tests/`, `tests/` |
-| IA | Résumés des avis par LLM, recherche sémantique, jeux similaires | `src/ml/` |
+| IA | « Le jeu en bref » par LLM, recherche sémantique, jeux similaires | `src/ml/` |
 | Publication | JSON du site, une page HTML par jeu (SEO, aperçus de partage), sitemap, flux RSS, bot Discord | `src/export/`, `site/` |
 | Lake | Tables en Parquet partitionné, poussées sur Cloudflare R2 si configuré | `src/lake/` |
 | Observabilité | Fraîcheur, volumes par jour, couverture des enrichissements, tests dbt, historique des runs | `src/export/build_health.py`, `site/sante.html` |
@@ -53,7 +53,7 @@ flowchart LR
 ## Modèle de données
 
 - **`marts.fct_price_history`** : un prix par jeu × boutique × jour. C'est la table de faits qui servira à prédire les promos.
-- **`marts.dim_games`** : un jeu par ligne, enrichi : plus bas prix historique (le plus bas entre CheapShark et nos relevés), fiche Steam, tags joueurs, mode coop, prix en euros, résumé IA des avis.
+- **`marts.dim_games`** : un jeu par ligne, enrichi : plus bas prix historique (le plus bas entre CheapShark et nos relevés), fiche Steam, tags joueurs, mode coop, prix en euros, résumé IA « Le jeu en bref ».
 - **`marts.dim_stores`**, **`marts.current_deals`**, **`marts.insights_store_stats`**.
 
 Lignage et description de chaque colonne : [documentation dbt](https://slfire.github.io/deal-hunter/docs/), régénérée à chaque run.
@@ -64,7 +64,9 @@ Lignage et description de chaque colonne : [documentation dbt](https://slfire.gi
 
 **Jeux similaires.** Les 6 voisins les plus proches de chaque jeu dans l'espace des embeddings, en écartant les éditions du même jeu.
 
-**Résumés des avis.** Les avis Steam les plus utiles sont résumés par un LLM via GitHub Models, gratuit dans GitHub Actions avec le `GITHUB_TOKEN`. Le modèle n'a le droit de s'appuyer que sur les avis fournis, la sortie est en JSON et elle est contrôlée (formes, longueurs) avant d'être publiée. Le quota gratuit étant limité, les résumés se remplissent par lots, les jeux les plus populaires d'abord.
+**Le jeu en bref.** Un LLM (GitHub Models, gratuit dans GitHub Actions avec le `GITHUB_TOKEN`) résume chaque jeu en une phrase, dit pour qui il est fait et cite trois caractéristiques marquantes. Il n'a le droit de s'appuyer que sur la fiche officielle Steam et les tags des joueurs, et le site l'affiche comme tel : ce n'est pas un résumé des avis. La sortie est en JSON, contrôlée avant publication, et un résumé n'est régénéré que si sa source change (empreinte de la fiche et des tags).
+
+*Historique : la première version résumait les avis des joueurs, mais l'endpoint public des avis Steam (`/appreviews`) redirige vers la page d'accueil depuis octobre 2026, y compris hors des serveurs de GitHub. Plutôt que de présenter autre chose comme « l'avis des joueurs », la fonction a été recentrée sur la fiche du jeu.*
 
 ## Options à activer (facultatif)
 
@@ -108,4 +110,4 @@ Prédire, pour chaque jeu, la probabilité d'une baisse de prix dans les 14 jour
 
 ## Sources
 
-Prix et boutiques : [CheapShark](https://www.cheapshark.com) · Fiches, prix en euros et avis : Steam · Tags joueurs : [SteamSpy](https://steamspy.com) · Calendrier des soldes : annonce officielle de Valve.
+Prix et boutiques : [CheapShark](https://www.cheapshark.com) · Fiches et prix en euros : Steam · Tags joueurs : [SteamSpy](https://steamspy.com) · Calendrier des soldes : annonce officielle de Valve.

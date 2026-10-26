@@ -154,7 +154,7 @@
 
     $("volumes").innerHTML = volumesSvg(h.volumes || []);
 
-    const labels = { lowest_ever: "Plus bas historique", steam_sheet: "Fiche Steam", tags: "Tags joueurs", eur: "Prix en euros", reviews: "Résumé IA des avis" };
+    const labels = { lowest_ever: "Plus bas historique", steam_sheet: "Fiche Steam", tags: "Tags joueurs", eur: "Prix en euros", brief: "Jeu en bref (IA)" };
     $("coverage").innerHTML = Object.entries(labels).map(([k, label]) => {
       const v = h.coverage[k] ?? 0;
       return `<li><span>${label}</span><span class="track"><span class="fill ${v < 50 ? "low" : ""}" style="width:${v}%"></span></span><span class="v">${Math.round(v)} %</span></li>`;

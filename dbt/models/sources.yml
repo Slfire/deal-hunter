@@ -17,5 +17,5 @@ sources:
         description: "Fiches Steam de référence (cache data/ref/steam)"
       - name: steamspy
         description: "Tags utilisateurs SteamSpy (cache data/ref/steamspy)"
-      - name: review_summaries
-        description: "Résumés IA des avis Steam (cache data/ref/review_summaries, générés via GitHub Models)"
+      - name: game_briefs
+        description: "« Le jeu en bref » : résumés IA de la fiche Steam et des tags (cache data/ref/game_briefs, GitHub Models)"

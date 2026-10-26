@@ -63,8 +63,8 @@ def build_payload(picks: list[dict], sales: list[dict], today: date) -> dict:
                  f"(−{round(g['best_savings'])} %)"]
         if g.get("eur") is not None:
             lines.append(f"Sur Steam France : {fr_price(g['eur'], '€')}")
-        if g.get("reviews") and g["reviews"].get("tldr"):
-            lines.append(f"_{g['reviews']['tldr']}_")
+        if g.get("brief") and g["brief"].get("summary"):
+            lines.append(f"_{g['brief']['summary']}_")
         elif g.get("tags"):
             lines.append(", ".join(g["tags"][:4]))
         embed = {"title": g["title"][:250], "url": game_url(g), "description": "\n".join(lines)[:4000], "color": COLOR}

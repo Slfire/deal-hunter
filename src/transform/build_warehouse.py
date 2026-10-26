@@ -128,8 +128,8 @@ def load_reference(con: duckdb.DuckDBPyConnection) -> None:
                     [[str(f) for f in steam]])
     log.info("raw.%-13s %d fiches de référence", "steam", len(steam))
 
-    # caches où l'id est dans le nom du fichier : steamspy/<appid>.json.gz, review_summaries/<appid>.json.gz
-    for name in ["steamspy", "review_summaries"]:
+    # caches où l'id est dans le nom du fichier : steamspy/<appid>.json.gz, game_briefs/<appid>.json.gz
+    for name in ["steamspy", "game_briefs"]:
         files = sorted(REF_DIR.glob(f"{name}/*.json.gz"))
         con.execute(f"CREATE OR REPLACE TABLE raw.{name} (app_id VARCHAR, payload JSON)")
         if files:
@@ -165,7 +165,7 @@ COVERAGE = {
     "plus bas historique CheapShark": "SELECT round(100.0 * avg(has_full_history::INT), 1) FROM marts.dim_games",
     "fiche Steam (jeux Steam)": "SELECT round(100.0 * avg((description IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
     "tags SteamSpy (jeux Steam)": "SELECT round(100.0 * avg((len(tags) > 0)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
-    "résumé IA des avis (jeux Steam)": "SELECT round(100.0 * avg((reviews_tldr IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
+    "jeu en bref IA (jeux Steam)": "SELECT round(100.0 * avg((brief_summary IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
     "prix en euros (jeux Steam)": "SELECT round(100.0 * avg((steam_price_eur IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
 }
 

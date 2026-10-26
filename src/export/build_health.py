@@ -47,7 +47,7 @@ SELECT
     round(100.0 * avg((description IS NOT NULL)::INT) FILTER (WHERE steam_app_id IS NOT NULL), 1) AS steam_sheet,
     round(100.0 * avg((len(tags) > 0)::INT) FILTER (WHERE steam_app_id IS NOT NULL), 1)           AS tags,
     round(100.0 * avg((steam_price_eur IS NOT NULL)::INT) FILTER (WHERE steam_app_id IS NOT NULL), 1) AS eur,
-    round(100.0 * avg((reviews_tldr IS NOT NULL)::INT) FILTER (WHERE steam_app_id IS NOT NULL), 1) AS reviews
+    round(100.0 * avg((brief_summary IS NOT NULL)::INT) FILTER (WHERE steam_app_id IS NOT NULL), 1) AS brief
 FROM marts.dim_games
 WHERE game_id IN (SELECT game_id FROM marts.current_deals)
 """

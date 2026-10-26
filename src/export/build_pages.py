@@ -118,12 +118,11 @@ h2{margin:28px 0 10px;font-size:18px;font-weight:750}.meta{color:var(--soft);fon
 .verdict{margin:14px 0 0;padding:12px 14px;border-radius:4px;background:#ebe8dc}.chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:12px 0 0}
 .chips li{font-size:13px;padding:3px 9px;border-radius:999px;background:#e4e0d2}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 td,th{padding:9px 8px 9px 0;border-top:1px solid var(--line);text-align:left}th{font-size:13px;color:var(--soft);font-weight:600;border-top:0}.num{text-align:right}
-.reviews{display:grid;grid-template-columns:1fr 1fr;gap:18px}.reviews h3{margin:0 0 6px;font-size:15px}.reviews ul{margin:0;padding-left:18px}
 .chart{width:100%;height:auto}.note{color:var(--soft);font-size:14px}.similar{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
 .similar a{display:block;padding:10px 12px;border-radius:4px;background:#ebe8dc;text-decoration:none}.similar span{display:block;color:var(--soft);font-size:13px}
 .cta{display:inline-block;margin-top:18px;padding:11px 16px;border-radius:4px;background:var(--ink);color:var(--tag);font-weight:700;text-decoration:none}
 footer{padding:0 0 36px;color:#8f98b3;font-size:14px}
-@media(max-width:600px){.reviews{grid-template-columns:1fr}.body{padding:16px}.price{font-size:36px}h1{font-size:25px}}
+@media(max-width:600px){.body{padding:16px}.price{font-size:36px}h1{font-size:25px}}
 """
 
 
@@ -143,15 +142,14 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
         f"<td class='num'><a href='{escape(o['url'])}' rel='nofollow sponsored noopener' target='_blank'>Voir l'offre</a></td></tr>"
         for o in g["offers"])
 
-    rv = g.get("reviews")
-    reviews_html = ""
-    if rv:
-        li = lambda xs: "".join(f"<li>{escape(x)}</li>" for x in xs) or "<li>Rien de marquant.</li>"  # noqa: E731
-        reviews_html = f"""<h2>Ce qu'en disent les joueurs</h2>
-<p>{escape(rv['tldr'])}</p>
-<div class="reviews"><div><h3>Ils aiment</h3><ul>{li(rv.get('likes') or [])}</ul></div>
-<div><h3>Ils regrettent</h3><ul>{li(rv.get('dislikes') or [])}</ul></div></div>
-<p class="note">Résumé généré par IA à partir de {rv.get('n') or 'plusieurs'} avis Steam.</p>"""
+    br = g.get("brief")
+    brief_html = ""
+    if br:
+        points = "".join(f"<li>{escape(p)}</li>" for p in br.get("points") or [])
+        brief_html = f"""<h2>Le jeu en bref</h2>
+<p>{escape(br['summary'])}{' ' + escape(br['for_whom']) if br.get('for_whom') else ''}</p>
+{'<ul>' + points + '</ul>' if points else ''}
+<p class="note">Résumé généré par IA à partir de la fiche Steam et des tags des joueurs. Ce n'est pas un avis.</p>"""
 
     similar_html = ""
     if similar:
@@ -215,7 +213,7 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
     <table><thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th></th></tr></thead><tbody>{offers}</tbody></table>
     <h2>Historique du meilleur prix</h2>
     {chart_svg(history, g['normal_price'])}
-    {reviews_html}
+    {brief_html}
     {similar_html}
     <a class="cta" href="../#jeu-{g['id']}">Suivre ce jeu sur Deal Hunter</a>
   </div>
