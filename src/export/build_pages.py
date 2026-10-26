@@ -66,6 +66,10 @@ def verdict(g: dict) -> tuple[str, str]:
     if best <= low:
         return "Bon moment pour acheter", f"C'est le prix le plus bas {scope}."
     when = month_year(g.get("lowest_ever_date"))
+    if low <= 0:   # jeu déjà offert (Epic, Prime Gaming…) : pas d'écart en % possible
+        return ("Déjà offert gratuitement",
+                f"Ce jeu a déjà été donné gratuitement{' en ' + when if when else ''}. Ça peut se reproduire, "
+                f"mais sans garantie : à {usd(best)}, c'est à toi de voir.")
     if (best - low) / low <= 0.10:
         return "Bon prix", f"Très proche du plus bas {scope} ({usd(low)}{', en ' + when if when else ''})."
     pct = round((best - low) / best * 100)
@@ -243,11 +247,24 @@ def main() -> int:
         shutil.rmtree(OUT_DIR)          # les jeux qui ne sont plus en promo disparaissent
     OUT_DIR.mkdir(parents=True)
 
+    built, failed = [], 0
     for g in games:
         hist_path = DATA_DIR / "history" / f"{g['id']}.json"
         history = json.loads(hist_path.read_text(encoding="utf-8")) if hist_path.exists() else []
-        sims = [by_id[i] for i in similar.get(str(g["id"]), []) if i in by_id]
-        (SITE_DIR / page_path(g)).write_text(render(g, data["stores"], history, sims, snapshot_fr), encoding="utf-8")
+        sims = [by_id[i] for i in similar.get(str(g["id"]), [])
+                if i in by_id and by_id[i].get("best_price") is not None and by_id[i].get("best_savings") is not None]
+        try:
+            html = render(g, data["stores"], history, sims, snapshot_fr)
+        except Exception:   # un jeu aux données inattendues ne doit pas bloquer la publication du site
+            log.exception("Page impossible pour le jeu %s (%s) : ignorée", g.get("id"), g.get("title"))
+            failed += 1
+            continue
+        (SITE_DIR / page_path(g)).write_text(html, encoding="utf-8")
+        built.append(g)
+    if failed > len(games) * 0.05:   # au-delà de 5 % d'échecs, ce n'est plus un cas isolé : on arrête
+        log.error("%d pages en échec sur %d : publication interrompue", failed, len(games))
+        return 1
+    games = built
 
     urls = [f"  <url><loc>{SITE_URL}</loc><lastmod>{snap}</lastmod><changefreq>daily</changefreq></url>",
             f"  <url><loc>{SITE_URL}insights.html</loc><lastmod>{snap}</lastmod></url>"]

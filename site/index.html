@@ -653,6 +653,9 @@
     if (g.best_price <= low) {
       return `<strong>Bon moment pour acheter.</strong> C'est le prix le plus bas ${scope}.`;
     }
+    if (low <= 0) {   // jeu déjà offert (Epic, Prime Gaming…) : pas d'écart en % possible
+      return `<strong>Déjà offert gratuitement.</strong> Ce jeu a déjà été donné${when ? ` en ${when}` : ""}. Ça peut se reproduire, mais sans garantie : à ${esc(fmt.format(g.best_price))}, c'est à toi de voir.`;
+    }
     const gap = ((g.best_price - low) / low) * 100;
     const sale = g.eur != null || g.offers.some((o) => o.store_id === 1) ? nextSteamSale() : null;
     const saleName = sale ? sale.name.charAt(0).toLowerCase() + sale.name.slice(1) : "";

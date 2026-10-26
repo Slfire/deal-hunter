@@ -122,6 +122,8 @@ def test_verdict_matches_site_logic():
     assert build_pages.verdict(_game(1, lowest_ever=4.99, days_tracked=1))[0] == "Bon moment pour acheter"
     assert build_pages.verdict(_game(1, lowest_ever=4.70, days_tracked=1))[0] == "Bon prix"
     assert build_pages.verdict(_game(1, lowest_ever=1.0, full_history=False, days_tracked=2))[0] == "Historique en construction"
+    # cas réel du 26/10 : jeu déjà offert gratuitement -> plus bas = 0 $, plus de division par zéro
+    assert build_pages.verdict(_game(1, lowest_ever=0.0, lowest_ever_date="2024-12-19", days_tracked=1))[0] == "Déjà offert gratuitement"
 
 
 # ---------- santé ----------
