@@ -17,8 +17,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import sys
+import unicodedata
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from email.utils import format_datetime
@@ -34,6 +36,7 @@ OUT_DIR = SITE_DIR / "data"
 SITE_URL = os.getenv("SITE_URL", "https://slfire.github.io/deal-hunter/").rstrip("/") + "/"
 
 FEED_SIZE = 30
+SALES_CALENDAR = PROJECT_ROOT / "data" / "ref" / "steam_sales_calendar.json"
 
 log = logging.getLogger("export")
 
@@ -44,6 +47,13 @@ def to_jsonable(v):
     if isinstance(v, (date, datetime)):
         return v.isoformat()
     return v
+
+
+def slugify(title: str) -> str:
+    """« Baldur's Gate 3 : Deluxe » -> « baldurs-gate-3-deluxe » (pour les URL des pages jeux)."""
+    t = unicodedata.normalize("NFKD", title or "").encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"['’]", "", t)
+    return re.sub(r"[^a-z0-9]+", "-", t).strip("-")[:60].strip("-") or "jeu"
 
 
 def rows(con, sql: str) -> list[dict]:
@@ -95,6 +105,10 @@ SELECT
     g.has_multi          AS multi,
     g.steam_price_eur    AS eur,
     g.steam_normal_eur   AS eur_normal,
+    CASE WHEN g.reviews_tldr IS NOT NULL THEN {
+        'likes': g.reviews_likes, 'dislikes': g.reviews_dislikes,
+        'tldr': g.reviews_tldr, 'n': g.reviews_count
+    } END                AS reviews,
     o.best_price, o.normal_price, o.best_savings, o.is_lowest_ever,
     g.lowest_ever_price::DOUBLE AS lowest_ever,
     g.lowest_ever_date   AS lowest_ever_date,
@@ -143,6 +157,15 @@ INSIGHTS_SQL = {
 }
 
 
+def upcoming_sales(today: date | None = None) -> list[dict]:
+    """Soldes Steam en cours ou à venir, d'après le calendrier officiel tenu dans data/ref."""
+    if not SALES_CALENDAR.exists():
+        return []
+    today = today or date.today()
+    sales = json.loads(SALES_CALENDAR.read_text(encoding="utf-8")).get("sales", [])
+    return [s for s in sales if date.fromisoformat(s["end"]) >= today]
+
+
 def build_feed(games: list[dict], snapshot_ts) -> str:
     """Flux RSS : les plus bas historiques du jour, réduction ≥ 50 %, les jeux les plus populaires d'abord."""
     picks = [g for g in games if g["is_lowest_ever"] and g["full_history"] and (g["best_savings"] or 0) >= 50]
@@ -163,7 +186,7 @@ def build_feed(games: list[dict], snapshot_ts) -> str:
             desc += " " + ", ".join(g["tags"][:4]) + "."
         items.append(f"""    <item>
       <title>{escape(g['title'])} à {escape(price)} (−{round(g['best_savings'])} %)</title>
-      <link>{escape(SITE_URL)}#jeu-{g['id']}</link>
+      <link>{escape(SITE_URL)}jeu/{g['id']}-{slugify(g['title'])}.html</link>
       <guid isPermaLink="false">dealhunter-{g['id']}-{day}</guid>
       <pubDate>{format_datetime(snap)}</pubDate>
       <description>{escape(desc)}</description>
@@ -202,6 +225,9 @@ def main() -> int:
     finally:
         con.close()
 
+    for g in games:
+        g["slug"] = slugify(g["title"])
+
     # on repart d'un dossier propre pour ne pas garder l'historique de jeux disparus
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
@@ -212,6 +238,7 @@ def main() -> int:
         "snapshot_ts": to_jsonable(snapshot_ts),
         "stores": stores,
         "genres": sorted({x for g in games for x in (g["genres"] or [])}, key=str.casefold),
+        "steam_sales": upcoming_sales(),
         "games": games,
     })
 

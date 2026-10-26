@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Santé du pipeline — Deal Hunter</title>
+<meta name="description" content="Fraîcheur des données, volumes collectés, couverture des enrichissements et tests de qualité du pipeline Deal Hunter.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  :root { --shelf:#1d2742; --shelf-2:#26324f; --tag:#f6f4ec; --ink:#1a1c24; --soft:#5c6070; --sticker:#ffd23f; --ok:#1f9d5c; --warn:#c77700; --bad:#c0392b; --line:#d9d5c7; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--shelf); color:var(--tag); font-family:"Archivo",system-ui,sans-serif; line-height:1.45; overflow-x:clip; }
+  a { color:inherit; text-underline-offset:3px; }
+  :focus-visible { outline:3px solid #7cc4ff; outline-offset:2px; }
+  .wrap { max-width:1000px; margin:0 auto; padding:0 16px; }
+  header { padding:40px 0 10px; }
+  .back { color:#c9cfdf; font-size:15px; }
+  h1 { margin:18px 0 0; font-size:clamp(38px,7vw,80px); line-height:.9; font-weight:800; font-stretch:125%; letter-spacing:-.02em; }
+  .status { display:flex; align-items:center; gap:12px; margin:22px 0 0; font-size:20px; }
+  .dot { width:16px; height:16px; border-radius:50%; flex:none; background:var(--ok); box-shadow:0 0 0 4px rgba(31,157,92,.25); }
+  .dot.warn { background:var(--warn); box-shadow:0 0 0 4px rgba(199,119,0,.25); }
+  .dot.bad { background:var(--bad); box-shadow:0 0 0 4px rgba(192,57,43,.3); }
+  .sub { color:#8f98b3; font-size:14px; margin-top:8px; }
+  main { padding:26px 0 56px; display:grid; gap:22px; }
+  section { background:var(--tag); color:var(--ink); border-radius:6px; padding:22px; }
+  h2 { margin:0; font-size:21px; font-weight:800; font-stretch:110%; }
+  .note { margin:6px 0 16px; color:var(--soft); font-size:15px; max-width:66ch; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+
+  .cov { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .cov li { display:grid; grid-template-columns:minmax(150px,220px) 1fr 56px; gap:12px; align-items:center; font-size:15px; }
+  .cov .track { height:12px; background:#ebe8dc; border-radius:999px; overflow:hidden; }
+  .cov .track, .cov .fill { display:block; }
+  .cov .fill { height:100%; background:var(--ink); border-radius:999px; }
+  .cov .fill.low { background:var(--warn); }
+  .cov .v { text-align:right; font-variant-numeric:tabular-nums; font-weight:650; }
+
+  .tests { display:flex; flex-wrap:wrap; gap:10px 26px; font-size:17px; }
+  .tests b { font-size:30px; font-weight:800; font-stretch:75%; margin-right:4px; }
+  .tests .ok b { color:var(--ok); } .tests .warn b { color:var(--warn); } .tests .bad b { color:var(--bad); }
+  .problems { margin:14px 0 0; padding-left:18px; font-size:15px; }
+
+  .vol { width:100%; height:auto; display:block; }
+  table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
+  th { text-align:left; color:var(--soft); font-weight:600; padding:0 8px 6px 0; }
+  td { padding:7px 8px 7px 0; border-top:1px solid var(--line); }
+  td.num, th.num { text-align:right; }
+  .scroll { overflow-x:auto; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:15px; }
+  footer { padding:0 0 40px; color:#8f98b3; font-size:14px; }
+  @media (max-width:760px) { .two { grid-template-columns:1fr; } .cov li { grid-template-columns:1fr 52px; } .cov .track { grid-column:1 / -1; grid-row:2; } section { padding:18px 16px; } }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <a class="back" href="./">Retour aux promos</a>
+  <h1>Santé du pipeline</h1>
+  <p class="status" id="status"><span class="dot"></span><span>Chargement…</span></p>
+  <p class="sub" id="sub"></p>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Volumes collectés chaque jour</h2>
+    <p class="note">Nombre de deals relevés par jour. Une chute brutale signale une source en panne ou qui a changé de format.</p>
+    <div id="volumes"></div>
+  </section>
+
+  <div class="two">
+    <section>
+      <h2>Couverture des enrichissements</h2>
+      <p class="note">Part des jeux en promo qui ont chaque information. Les caches se remplissent par lots chaque matin.</p>
+      <ul class="cov" id="coverage"></ul>
+    </section>
+    <section>
+      <h2>Tests de qualité dbt</h2>
+      <p class="note">Unicité, valeurs manquantes, relations entre tables, cohérence des prix. Une alerte prévient sans bloquer la mise en ligne.</p>
+      <div class="tests" id="tests"></div>
+      <ul class="problems" id="problems"></ul>
+    </section>
+  </div>
+
+  <section>
+    <h2>Derniers runs</h2>
+    <p class="note">Chaque matin, GitHub Actions collecte, transforme, teste et publie. Durée totale et volumes par run.</p>
+    <div class="scroll"><table id="runs"></table></div>
+  </section>
+
+  <section>
+    <h2>Pour aller plus loin</h2>
+    <p class="links">
+      <a href="docs/">Documentation et lignage des tables (dbt)</a>
+      <a id="repoLink" href="https://github.com/Slfire/deal-hunter">Code source</a>
+      <a id="actionsLink" href="https://github.com/Slfire/deal-hunter/actions">Historique complet des runs</a>
+    </p>
+  </section>
+</main>
+
+<footer class="wrap">Page générée automatiquement à chaque run du pipeline.</footer>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  const nf = new Intl.NumberFormat("fr-FR");
+  const dt = new Intl.DateTimeFormat("fr-FR", { day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" });
+  const dShort = new Intl.DateTimeFormat("fr-FR", { day:"numeric", month:"short" });
+
+  function volumesSvg(v) {
+    if (v.length < 2) return `<p class="note">Le graphique apparaîtra après le deuxième jour de collecte.</p>`;
+    const W = 900, H = 200, L = 50, R = 10, T = 12, B = 26;
+    const max = Math.max(...v.map((x) => x.deals)) * 1.1;
+    const bw = (W - L - R) / v.length;
+    const y = (n) => T + (1 - n / max) * (H - T - B);
+    const bars = v.map((x, i) => `<rect x="${(L + i * bw + 1).toFixed(1)}" y="${y(x.deals).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${(H - B - y(x.deals)).toFixed(1)}" fill="#1a1c24"><title>${esc(dShort.format(new Date(x.day)))} : ${nf.format(x.deals)} deals, ${nf.format(x.games)} jeux</title></rect>`).join("");
+    return `<svg class="vol" viewBox="0 0 ${W} ${H}" role="img" aria-label="Deals relevés par jour sur ${v.length} jours">
+      <line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#d9d5c7"/>
+      <text x="${L - 6}" y="${y(max / 1.1) + 4}" text-anchor="end" font-size="12" fill="#5c6070">${nf.format(Math.round(max / 1.1))}</text>
+      <text x="${L - 6}" y="${y(0) + 4}" text-anchor="end" font-size="12" fill="#5c6070">0</text>
+      ${bars}
+      <text x="${L}" y="${H - 6}" font-size="12" fill="#5c6070">${esc(dShort.format(new Date(v[0].day)))}</text>
+      <text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="12" fill="#5c6070">${esc(dShort.format(new Date(v[v.length - 1].day)))}</text>
+    </svg>`;
+  }
+
+  async function init() {
+    let h;
+    try {
+      const r = await fetch("data/health.json", { cache: "no-cache" });
+      if (!r.ok) throw new Error(r.status);
+      h = await r.json();
+    } catch {
+      $("status").innerHTML = `<span class="dot bad"></span><span>Impossible de lire l'état du pipeline.</span>`;
+      return;
+    }
+
+    const ageH = (Date.now() - new Date(h.snapshot_ts + (h.snapshot_ts.endsWith("Z") ? "" : "Z"))) / 36e5;
+    const t = h.dbt || {};
+    const failing = (t.tests_fail || 0) + (t.models_error || 0);
+    let cls = "", msg;
+    if (ageH > 48 || failing) { cls = "bad"; msg = ageH > 48 ? `Données vieilles de ${Math.round(ageH / 24)} jours : le pipeline ne tourne plus.` : "Des tests de qualité échouent."; }
+    else if (ageH > 30 || t.tests_warn) { cls = "warn"; msg = ageH > 30 ? "Le dernier run quotidien a du retard." : `Tout tourne, avec ${t.tests_warn} alerte${t.tests_warn > 1 ? "s" : ""} de qualité.`; }
+    else msg = "Tout fonctionne. Les données sont à jour.";
+    $("status").innerHTML = `<span class="dot ${cls}"></span><span>${esc(msg)}</span>`;
+    $("sub").textContent = `Dernier relevé : ${dt.format(new Date(h.snapshot_ts + (h.snapshot_ts.endsWith("Z") ? "" : "Z")))}. ${nf.format(h.coverage.games)} jeux en promo, ${nf.format(h.raw_files_loaded)} fichiers bruts chargés depuis le début.`;
+
+    if (h.repo) {
+      $("repoLink").href = `https://github.com/${h.repo}`;
+      $("actionsLink").href = `https://github.com/${h.repo}/actions`;
+    }
+
+    $("volumes").innerHTML = volumesSvg(h.volumes || []);
+
+    const labels = { lowest_ever: "Plus bas historique", steam_sheet: "Fiche Steam", tags: "Tags joueurs", eur: "Prix en euros", reviews: "Résumé IA des avis" };
+    $("coverage").innerHTML = Object.entries(labels).map(([k, label]) => {
+      const v = h.coverage[k] ?? 0;
+      return `<li><span>${label}</span><span class="track"><span class="fill ${v < 50 ? "low" : ""}" style="width:${v}%"></span></span><span class="v">${Math.round(v)} %</span></li>`;
+    }).join("");
+
+    if (!t.available) {
+      $("tests").innerHTML = `<p class="note">Résultats des tests indisponibles pour ce run.</p>`;
+    } else {
+      $("tests").innerHTML = `
+        <span class="ok"><b>${t.tests_pass}</b>réussis</span>
+        <span class="warn"><b>${t.tests_warn}</b>alertes</span>
+        <span class="bad"><b>${t.tests_fail}</b>échecs</span>
+        <span><b>${t.models_ok}</b>modèles construits en ${t.elapsed_s} s</span>`;
+      $("problems").innerHTML = (t.problems || []).map((p) => `<li><strong>${esc(p.test)}</strong> : ${esc(p.status === "warn" ? "alerte" : "échec")}${p.failures != null ? `, ${nf.format(p.failures)} lignes concernées` : ""}</li>`).join("");
+    }
+
+    const runs = (h.runs || []).slice().reverse();
+    $("runs").innerHTML = runs.length
+      ? `<thead><tr><th>Date</th><th class="num">Durée</th><th class="num">Jeux</th><th class="num">Deals</th><th class="num">Tests OK</th><th class="num">Alertes</th><th class="num">Échecs</th></tr></thead><tbody>` +
+        runs.map((r) => `<tr><td>${esc(dt.format(new Date(r.date)))}</td><td class="num">${r.duration_min != null ? `${r.duration_min} min` : "—"}</td><td class="num">${nf.format(r.games ?? 0)}</td><td class="num">${nf.format(r.deals ?? 0)}</td><td class="num">${r.tests_pass ?? "—"}</td><td class="num">${r.tests_warn ?? "—"}</td><td class="num">${r.tests_fail ?? "—"}</td></tr>`).join("") + "</tbody>"
+      : `<tr><td class="note">L'historique des runs commence au prochain run automatique.</td></tr>`;
+  }
+  init();
+})();
+</script>
+</body>
+</html>

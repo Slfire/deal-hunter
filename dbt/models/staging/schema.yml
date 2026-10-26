@@ -50,3 +50,9 @@ models:
           - accepted_values:
               arguments:
                 values: ["EUR"]
+
+  - name: stg_review_summaries
+    description: "Résumés IA des avis Steam (GitHub Models)"
+    columns:
+      - name: steam_app_id
+        tests: [unique, not_null]

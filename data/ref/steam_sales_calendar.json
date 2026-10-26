@@ -1,0 +1,13 @@
+{
+  "_source": "Calendrier officiel publié par Valve (Steamworks), juillet 2026. Les soldes commencent en général vers 19 h, heure de Paris. À mettre à jour quand Valve publie la suite.",
+  "_links": [
+    "https://www.notebookcheck.net/Valve-announces-Steam-Sales-and-Festivals-for-first-half-of-2027.1344181.0.html",
+    "https://www.digitalcitizen.life/valve-reveals-full-steam-sale-and-festival-schedule-through-july-2027/"
+  ],
+  "sales": [
+    {"name": "Soldes d'automne Steam", "start": "2026-10-01", "end": "2026-10-08"},
+    {"name": "Soldes d'hiver Steam", "start": "2026-12-17", "end": "2027-01-04"},
+    {"name": "Soldes de printemps Steam", "start": "2027-03-18", "end": "2027-03-25"},
+    {"name": "Soldes d'été Steam", "start": "2027-06-24", "end": "2027-07-08"}
+  ]
+}

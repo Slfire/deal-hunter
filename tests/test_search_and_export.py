@@ -45,4 +45,4 @@ def test_feed_selects_real_all_time_lows_and_escapes_xml():
     feed = export_site_data.build_feed(games, datetime(2026, 10, 26, 6, tzinfo=timezone.utc))
     xml.dom.minidom.parseString(feed)                # XML valide malgré & et <>
     assert feed.count("<item>") == 1
-    assert "#jeu-1" in feed and "dealhunter-1-2026-10-26" in feed
+    assert "jeu/1-rock-roll-deluxe.html" in feed and "dealhunter-1-2026-10-26" in feed

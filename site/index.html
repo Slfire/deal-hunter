@@ -81,6 +81,18 @@
   .follow { font: inherit; font-weight: 700; font-size: 15px; margin-top: 14px; padding: 9px 14px; border-radius: 4px; cursor: pointer;
             border: 0; background: var(--ink); color: var(--tag); }
   .follow[aria-pressed="true"] { background: var(--sticker); color: var(--ink); }
+  .sale-banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: var(--shelf-2); color: var(--tag); max-width: 64ch; font-size: 15px; }
+  .sale-banner strong { color: var(--sticker); }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; }
+  .reviews { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+  .reviews h4 { margin: 0 0 4px; font-size: 15px; }
+  .reviews ul { margin: 0; padding-left: 18px; font-size: 15px; }
+  .ai-note { font-size: 13px; color: var(--ink-soft); margin: 8px 0 0; }
+  .similar { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .similar button { width: 100%; text-align: left; font: inherit; font-size: 15px; font-weight: 650; padding: 9px 12px; border: 0; border-radius: 4px; background: #ebe8dc; color: var(--ink); cursor: pointer; }
+  .similar button span { display: block; font-weight: 400; font-size: 13px; color: var(--ink-soft); }
+  .share { display: inline-block; margin: 14px 0 0 12px; font-size: 15px; }
+  @media (max-width: 560px) { .reviews { grid-template-columns: 1fr; } .share { margin-left: 0; display: block; } }
   .ai-toggle { font-weight: 650; }
   .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: #c9cfdf; }
   .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--sticker); }
@@ -216,6 +228,7 @@
     <a href="insights.html">Les chiffres du marché</a>
     <a href="feed.xml">Flux RSS des plus bas historiques</a>
   </nav>
+  <p class="sale-banner" id="saleBanner" hidden></p>
   <p class="wish-alert" id="wishAlert" hidden></p>
 </header>
 
@@ -264,7 +277,8 @@
 </main>
 
 <footer class="wrap">
-  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>.
+  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>, résumés des avis générés par IA.
+  <p class="foot-links"><a href="sante.html">Santé du pipeline</a> <a href="docs/">Documentation des données</a> <a href="https://github.com/Slfire/deal-hunter">Code source</a></p>
 </footer>
 
 <dialog id="sheet" aria-labelledby="sheet-title"></dialog>
@@ -276,6 +290,7 @@
   const fmtEur = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const fmtMonth = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+  const fmtDayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
   const fmtShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
   const $ = (id) => document.getElementById(id);
 
@@ -590,6 +605,43 @@
     $("showWish").onclick = () => { $("wishOnly").checked = true; applyFilters(); $("grid").scrollIntoView({ behavior: "smooth" }); };
   }
 
+  // ---------- soldes Steam (calendrier officiel publié par Valve) ----------
+  const DAY = 864e5;
+  const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  const parseDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+
+  function nextSteamSale(withinDays = 60) {
+    const t = today0();
+    for (const s of data.steam_sales || []) {
+      const start = parseDay(s.start), end = parseDay(s.end);
+      if (t >= start && t <= end) return { ...s, ongoing: true, days: 0 };
+      const days = Math.round((start - t) / DAY);
+      if (days > 0 && days <= withinDays) return { ...s, ongoing: false, days };
+    }
+    return null;
+  }
+
+  function renderSaleBanner() {
+    const s = nextSteamSale();
+    const el = $("saleBanner");
+    if (!s) { el.hidden = true; return; }
+    el.innerHTML = s.ongoing
+      ? `<strong>${esc(s.name)} en cours</strong> jusqu'au ${esc(fmtDayMonth.format(parseDay(s.end)))}.`
+      : `<strong>${esc(s.name)}</strong> le ${esc(fmtDayMonth.format(parseDay(s.start)))}, dans ${s.days} jours. Pour un jeu Steam qui n'est pas au plus bas, ça vaut souvent le coup d'attendre.`;
+    el.hidden = false;
+  }
+
+  // ---------- jeux similaires (calculés à partir des embeddings, chargés à la demande) ----------
+  let similarIndex = null;
+  async function similarFor(id) {
+    if (!similarIndex) {
+      try { similarIndex = await fetch("data/search/similar.json").then((r) => (r.ok ? r.json() : {})); }
+      catch { similarIndex = {}; }
+    }
+    const byId = new Map(data.games.map((g) => [g.id, g]));
+    return (similarIndex[id] || []).map((i) => byId.get(i)).filter(Boolean);
+  }
+
   // ---------- fiche jeu ----------
   function verdict(g) {
     const low = g.lowest_ever;
@@ -602,10 +654,13 @@
       return `<strong>Bon moment pour acheter.</strong> C'est le prix le plus bas ${scope}.`;
     }
     const gap = ((g.best_price - low) / low) * 100;
+    const sale = g.eur != null || g.offers.some((o) => o.store_id === 1) ? nextSteamSale() : null;
+    const saleName = sale ? sale.name.charAt(0).toLowerCase() + sale.name.slice(1) : "";
+    const saleTip = sale && !sale.ongoing ? ` Les ${esc(saleName)} commencent dans ${sale.days} jours.` : "";
     if (gap <= 10) {
-      return `<strong>Bon prix.</strong> Très proche du plus bas ${scope} (${esc(fmt.format(low))}${when ? `, en ${when}` : ""}).`;
+      return `<strong>Bon prix.</strong> Très proche du plus bas ${scope} (${esc(fmt.format(low))}${when ? `, en ${when}` : ""}).${saleTip}`;
     }
-    return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(low))}${when ? ` en ${when}` : ""}, soit ${Math.round(((g.best_price - low) / g.best_price) * 100)} % de moins qu'aujourd'hui.`;
+    return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(low))}${when ? ` en ${when}` : ""}, soit ${Math.round(((g.best_price - low) / g.best_price) * 100)} % de moins qu'aujourd'hui.${saleTip}`;
   }
 
   function chartSvg(points, normal) {
@@ -681,6 +736,15 @@
         <p class="verdict">${verdict(g)}</p>
         ${g.eur != null ? `<p class="desc">Sur Steam France : <strong>${esc(fmtEur.format(g.eur))}</strong>${g.eur_normal && g.eur_normal > g.eur ? ` au lieu de ${esc(fmtEur.format(g.eur_normal))}` : ""}.</p>` : ""}
         <button class="follow" id="follow" aria-pressed="${wish.has(g.id)}">${wish.has(g.id) ? "Suivi : retirer de ma liste" : "Suivre ce jeu"}</button>
+        <a class="share" href="jeu/${g.id}-${encodeURIComponent(g.slug || "jeu")}.html">Page à partager</a>
+        ${g.reviews ? `
+        <h3>Ce qu'en disent les joueurs</h3>
+        <p class="desc">${esc(g.reviews.tldr)}</p>
+        <div class="reviews">
+          <div><h4>Ils aiment</h4><ul>${(g.reviews.likes || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>Rien de marquant.</li>"}</ul></div>
+          <div><h4>Ils regrettent</h4><ul>${(g.reviews.dislikes || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>Rien de marquant.</li>"}</ul></div>
+        </div>
+        <p class="ai-note">Résumé généré par IA à partir de ${g.reviews.n || "plusieurs"} avis Steam.</p>` : ""}
         <h3>Prix par boutique</h3>
         <table>
           <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th class="num"><span hidden>Lien</span></th></tr></thead>
@@ -688,6 +752,7 @@
         </table>
         <h3>Historique du meilleur prix</h3>
         <div id="chart"><p class="chart-note">Chargement de l'historique…</p></div>
+        <div id="similar"></div>
       </div>`;
     $("close").onclick = () => sheet.close();
     $("follow").onclick = () => {
@@ -698,6 +763,16 @@
     };
     sheet.showModal();
     history.replaceState(null, "", `#jeu-${g.id}`);   // lien partageable vers cette fiche
+
+    similarFor(g.id).then((list) => {
+      if (!list.length || !$("similar")) return;
+      $("similar").innerHTML = `<h3>Jeux similaires en promo</h3><ul class="similar">${list.map((s) =>
+        `<li><button type="button" data-id="${s.id}">${esc(s.title)}<span>${esc(fmt.format(s.best_price))}, −${Math.round(s.best_savings)} %</span></button></li>`).join("")}</ul>`;
+      $("similar").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+        const next = data.games.find((x) => x.id === Number(b.dataset.id));
+        if (next) { sheet.close(); openSheet(next); }
+      }));
+    });
 
     try {
       const res = await fetch(`data/history/${g.id}.json`);
@@ -754,6 +829,7 @@
 
     applyFilters();
     renderWishAlert();
+    renderSaleBanner();
     openFromHash();
   }
 

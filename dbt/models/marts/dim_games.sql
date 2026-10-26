@@ -44,7 +44,11 @@ select
     g.owners_range,
     p.steam_price_eur,
     p.steam_normal_eur,
-    p.steam_discount_pct
+    p.steam_discount_pct,
+    r.reviews_likes,
+    r.reviews_dislikes,
+    r.reviews_tldr,
+    r.reviews_count
 from latest l
 left join tracked t using (game_id)
 left join our_low o using (game_id)
@@ -52,3 +56,4 @@ left join {{ ref('stg_games_info') }} i using (game_id)
 left join {{ ref('stg_steam') }} s using (steam_app_id)
 left join {{ ref('stg_steamspy_tags') }} g using (steam_app_id)
 left join {{ ref('stg_steam_prices') }} p using (steam_app_id)
+left join {{ ref('stg_review_summaries') }} r using (steam_app_id)

@@ -1,10 +1,15 @@
 .env
 .venv/
 __pycache__/
+.pytest_cache/
 data/warehouse/
+data/lake/
 site/data/
+site/jeu/
+site/docs/
 site/feed.xml
+site/sitemap.xml
+site/robots.txt
 dbt/target/
 dbt/logs/
 dbt/.user.yml
-.pytest_cache/

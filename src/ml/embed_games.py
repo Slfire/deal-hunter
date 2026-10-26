@@ -40,6 +40,7 @@ OUT_DIR = PROJECT_ROOT / "site" / "data" / "search"
 
 MODEL_REPO = "Xenova/multilingual-e5-small"
 MODEL_FILE = "onnx/model_quantized.onnx"
+SIMILAR_K = 6             # nombre de « jeux similaires » par fiche
 MAX_TOKENS = 256          # la description courte Steam tient largement dedans
 BATCH = 32
 
@@ -117,6 +118,34 @@ class FakeEmbedder:
         return v / np.linalg.norm(v, axis=1, keepdims=True)
 
 
+def _norm_title(t: str) -> str:
+    return "".join(ch for ch in (t or "").lower() if ch.isalnum())
+
+
+def similar_games(ids: list[int], titles: list[str], vectors: np.ndarray, k: int = SIMILAR_K) -> dict[int, list[int]]:
+    """
+    Pour chaque jeu, les k jeux les plus proches au sens des embeddings.
+    On écarte les variantes du même jeu (« Deluxe Edition », « GOTY »...) : quand un titre
+    commence par l'autre, ce n'est pas une recommandation intéressante.
+    """
+    sims = vectors @ vectors.T
+    norm = [_norm_title(t) for t in titles]
+    out: dict[int, list[int]] = {}
+    for i in range(len(ids)):
+        picks = []
+        for j in np.argsort(-sims[i]):
+            if j == i or not norm[i] or not norm[j]:
+                continue
+            a, b = norm[i], norm[j]
+            if a.startswith(b[:12]) or b.startswith(a[:12]):
+                continue
+            picks.append(int(ids[j]))
+            if len(picks) == k:
+                break
+        out[int(ids[i])] = picks
+    return out
+
+
 def quantize(vectors: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """int8 avec une échelle par vecteur : v ≈ q * scale."""
     scales = np.abs(vectors).max(axis=1) / 127.0
@@ -161,6 +190,10 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "vectors.i8").write_bytes(q.tobytes())
     (OUT_DIR / "scales.f32").write_bytes(scales.astype("<f4").tobytes())
+    similar = similar_games(ids, [r[1] for r in rows], vectors)
+    (OUT_DIR / "similar.json").write_text(json.dumps(similar, separators=(",", ":")), encoding="utf-8")
+    log.info("Jeux similaires : %d fiches x %d recommandations", len(similar), SIMILAR_K)
+
     (OUT_DIR / "index.json").write_text(json.dumps({
         "model": MODEL_REPO,
         "dim": int(vectors.shape[1]),

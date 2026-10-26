@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -127,14 +128,16 @@ def load_reference(con: duckdb.DuckDBPyConnection) -> None:
                     [[str(f) for f in steam]])
     log.info("raw.%-13s %d fiches de référence", "steam", len(steam))
 
-    spy = sorted(REF_DIR.glob("steamspy/*.json.gz"))
-    con.execute("CREATE OR REPLACE TABLE raw.steamspy (app_id VARCHAR, payload JSON)")
-    if spy:     # fichier = {"appid": ..., "tags": {...}} ; l'id est dans le nom du fichier
-        con.execute(r"""INSERT INTO raw.steamspy
-                        SELECT regexp_extract(filename, '(\d+)\.json', 1), json
-                        FROM read_json_objects(?, filename = true, compression = 'auto_detect')""",
-                    [[str(f) for f in spy]])
-    log.info("raw.%-13s %d fiches de référence", "steamspy", len(spy))
+    # caches où l'id est dans le nom du fichier : steamspy/<appid>.json.gz, review_summaries/<appid>.json.gz
+    for name in ["steamspy", "review_summaries"]:
+        files = sorted(REF_DIR.glob(f"{name}/*.json.gz"))
+        con.execute(f"CREATE OR REPLACE TABLE raw.{name} (app_id VARCHAR, payload JSON)")
+        if files:
+            con.execute(rf"""INSERT INTO raw.{name}
+                             SELECT regexp_extract(filename, '(\d+)\.json', 1), json
+                             FROM read_json_objects(?, filename = true, compression = 'auto_detect')""",
+                        [[str(f) for f in files]])
+        log.info("raw.%-13s %d fiches de référence", name, len(files))
 
 
 def run_dbt() -> bool:
@@ -147,6 +150,10 @@ def run_dbt() -> bool:
     if not res.success:
         log.error("dbt build a échoué : %s", res.exception or "voir les erreurs ci-dessus")
         return False
+    # gardé à part : « dbt docs generate » réécrit run_results.json, la page Santé lit cette copie
+    results = DBT_DIR / "target" / "run_results.json"
+    if results.exists():
+        shutil.copyfile(results, DBT_DIR / "target" / "build_results.json")
     warnings = [r for r in res.result if getattr(r, "status", None) == "warn"]
     for r in warnings:
         log.warning("Test de qualité en alerte : %s (%s lignes)", r.node.name, r.failures)
@@ -158,6 +165,7 @@ COVERAGE = {
     "plus bas historique CheapShark": "SELECT round(100.0 * avg(has_full_history::INT), 1) FROM marts.dim_games",
     "fiche Steam (jeux Steam)": "SELECT round(100.0 * avg((description IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
     "tags SteamSpy (jeux Steam)": "SELECT round(100.0 * avg((len(tags) > 0)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
+    "résumé IA des avis (jeux Steam)": "SELECT round(100.0 * avg((reviews_tldr IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
     "prix en euros (jeux Steam)": "SELECT round(100.0 * avg((steam_price_eur IS NOT NULL)::INT), 1) FROM marts.dim_games WHERE steam_app_id IS NOT NULL",
 }
 

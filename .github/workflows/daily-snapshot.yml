@@ -9,12 +9,17 @@ concurrency:
   group: daily-snapshot       # jamais deux runs en même temps
   cancel-in-progress: false
 
+env:
+  # à surcharger avec la variable de repo SITE_URL si tu passes sur un nom de domaine
+  SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/deal-hunter/', github.repository_owner) }}
+
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     permissions:
       contents: write         # committer les nouveaux snapshots
+      models: read            # GitHub Models (résumés IA des avis), gratuit avec le GITHUB_TOKEN
     steps:
       - uses: actions/checkout@v5
 
@@ -26,6 +31,10 @@ jobs:
       - name: Installer les dépendances
         run: pip install -r requirements.txt
 
+      - name: Noter l'heure de départ (pour la page Santé)
+        run: echo "RUN_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      # ---------- collecte ----------
       - name: Snapshot CheapShark (toutes les pages)
         env:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
@@ -55,12 +64,25 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/steam_prices.py
 
+      - name: Avis des joueurs Steam
+        continue-on-error: true
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+        run: python src/ingestion/steam_reviews.py --max-new 150
+
+      - name: Résumés IA des avis (GitHub Models)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEALHUNTER_LLM_MODEL: ${{ vars.DEALHUNTER_LLM_MODEL }}
+        run: python src/ml/summarize_reviews.py --max-new 100
+
+      # ---------- transformation ----------
       - name: Construire le warehouse (chargement + dbt build)
         run: python src/transform/build_warehouse.py
 
+      # ---------- publication ----------
       - name: Exporter les données du site (+ insights, flux RSS)
-        env:
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python src/export/export_site_data.py
 
       - name: Cache du modèle d'IA (téléchargé une seule fois)
@@ -69,9 +91,40 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-multilingual-e5-small-q8
 
-      - name: Index de recherche IA (embeddings des jeux)
+      - name: Index de recherche IA + jeux similaires
         continue-on-error: true      # sans index, le site marche quand même (recherche classique)
         run: python src/ml/embed_games.py
+
+      - name: Pages par jeu, sitemap, robots.txt
+        run: python src/export/build_pages.py
+
+      - name: Documentation dbt (lignage des tables) sur /docs
+        continue-on-error: true
+        working-directory: dbt
+        env:
+          DEALHUNTER_DB: ${{ github.workspace }}/data/warehouse/dealhunter.duckdb
+        run: |
+          dbt docs generate --static --quiet
+          mkdir -p ../site/docs
+          cp target/static_index.html ../site/docs/index.html
+
+      - name: Lake Parquet (+ Cloudflare R2 si configuré)
+        continue-on-error: true
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: python src/lake/export_lake.py
+
+      - name: Santé du pipeline
+        run: python src/export/build_health.py
+
+      - name: Bot Discord (si configuré)
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python src/export/notify_discord.py
 
       - name: Committer le snapshot du jour
         run: |
