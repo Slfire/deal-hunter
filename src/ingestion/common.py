@@ -109,3 +109,48 @@ def latest_deals() -> list[dict]:
     for page in sorted(run.glob("page_*.json*")):
         deals.extend(read_json(page))
     return deals
+
+
+def steam_app_ids_from_latest_deals() -> list[str]:
+    return sorted({d["steamAppID"] for d in latest_deals() if d.get("steamAppID")}, key=int)
+
+
+def fill_ref_cache(name: str, ids: list[str], fetch, max_new: int, sleep_s: float, refresh_days: int) -> int:
+    """
+    Cache de données de RÉFÉRENCE (qui bougent peu) : data/ref/<name>/<id>.json.gz + _index.json.
+
+    Ne télécharge que les ids jamais vus, puis ceux plus vieux que refresh_days, dans la limite
+    de max_new par run. fetch(id) renvoie la réponse brute à sauvegarder telle quelle.
+    S'arrête proprement si la source ne répond plus : ce qui est déjà récupéré est conservé.
+    """
+    from datetime import date, timedelta
+
+    cache_dir = REF_DIR / name
+    index_path = cache_dir / "_index.json"
+    index: dict[str, str] = read_json(index_path) if index_path.exists() else {}
+    stale_before = (date.today() - timedelta(days=refresh_days)).isoformat()
+
+    missing = [i for i in ids if i not in index]
+    stale = [i for i in ids if i in index and index[i] < stale_before]
+    todo = (missing + stale)[:max_new]
+    log.info("%s : %d ids, %d jamais vus, %d à rafraîchir -> %d ce run (max %d)",
+             name, len(ids), len(missing), len(stale), len(todo), max_new)
+
+    done = 0
+    try:
+        for k, item in enumerate(todo):
+            write_json(cache_dir / f"{item}.json.gz", fetch(item))
+            index[item] = date.today().isoformat()
+            done += 1
+            if done % 50 == 0:
+                write_json(index_path, index)      # sauvegarde régulière : un crash ne fait pas tout perdre
+                log.info("%s : %d/%d", name, done, len(todo))
+            if k < len(todo) - 1:
+                time.sleep(sleep_s)
+    except RuntimeError as exc:
+        log.warning("%s ne répond plus (%s) — on garde les %d fiches déjà récupérées.", name, exc, done)
+    finally:
+        if todo:
+            write_json(index_path, index)
+    log.info("%s : %d fiches récupérées ce run, %d en cache au total", name, done, len(index))
+    return done

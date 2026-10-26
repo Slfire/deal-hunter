@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Les chiffres du marché — Deal Hunter</title>
+<meta name="description" content="Quelle boutique est la moins chère, comment se répartissent les réductions, quels jeux sont les plus soldés : les promos sur les jeux PC en chiffres, mis à jour chaque jour.">
+<link rel="alternate" type="application/rss+xml" title="Deal Hunter — plus bas historiques du jour" href="feed.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --shelf: #1d2742;
+    --shelf-2: #26324f;
+    --tag: #f6f4ec;
+    --ink: #1a1c24;
+    --ink-soft: #5c6070;
+    --sticker: #ffd23f;
+    --low: #1f9d5c;
+    --line: #d9d5c7;
+    --focus: #7cc4ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--shelf); color: var(--tag);
+    font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.45;
+    overflow-x: clip;
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+
+  header { padding: 40px 0 8px; }
+  .back { color: #c9cfdf; font-size: 15px; }
+  h1 {
+    margin: 18px 0 0; font-size: clamp(40px, 7.5vw, 88px); line-height: .9;
+    font-weight: 800; font-stretch: 125%; letter-spacing: -.02em;
+  }
+  .lede { margin: 22px 0 0; max-width: 60ch; font-size: 20px; color: #dde2ee; }
+  .lede strong {
+    font-weight: 800; font-stretch: 75%; font-size: 1.15em; color: var(--ink);
+    background: var(--sticker); padding: 0 6px; border-radius: 3px;
+  }
+  .stamp { margin-top: 12px; color: #8f98b3; font-size: 14px; }
+
+  main { padding: 28px 0 56px; display: grid; gap: 22px; }
+  section { background: var(--tag); color: var(--ink); border-radius: 6px; padding: 22px 22px 24px; }
+  h2 { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 800; font-stretch: 110%; }
+  .note { margin: 6px 0 18px; color: var(--ink-soft); font-size: 15px; max-width: 64ch; }
+
+  /* barres horizontales */
+  .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .bar { display: grid; grid-template-columns: minmax(110px, 170px) 1fr; gap: 12px; align-items: center; }
+  .bar .name { font-weight: 650; font-size: 15px; overflow-wrap: anywhere; }
+  .bar .track { position: relative; height: 30px; background: #ebe8dc; border-radius: 3px; }
+  .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 3px; min-width: 3px; }
+  .bar:first-child .fill { background: var(--sticker); }
+  .bar .val {
+    position: absolute; top: 50%; transform: translateY(-50%); left: calc(var(--w) + 8px);
+    font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink);
+  }
+  .bar .val.inside { left: auto; right: calc(100% - var(--w) + 8px); color: var(--tag); }
+  .bar:first-child .val.inside { color: var(--ink); }
+
+  /* histogramme des réductions */
+  .histo { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; align-items: end; height: 220px; margin-top: 8px; }
+  .col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; text-align: center; }
+  .col .stack { background: var(--ink); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .col.top .stack { background: var(--sticker); }
+  .col .n { font-size: 13px; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .axis { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); text-align: center; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  footer { padding: 0 0 40px; color: #8f98b3; font-size: 14px; }
+  .empty { color: var(--ink-soft); }
+
+  @media (max-width: 760px) {
+    .two { grid-template-columns: 1fr; }
+    .bar { grid-template-columns: 1fr; gap: 4px; }
+    section { padding: 18px 16px 20px; }
+    .histo { height: 170px; gap: 3px; }
+    .axis { gap: 3px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <a class="back" href="./">Retour aux promos</a>
+  <h1>Les chiffres du marché</h1>
+  <p class="lede" id="lede">Chargement des chiffres…</p>
+  <p class="stamp" id="stamp"></p>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Quelle boutique est la moins chère le plus souvent ?</h2>
+    <p class="note">Parmi les jeux vendus par au moins deux boutiques, la part des fois où chaque boutique propose le meilleur prix. Boutiques comparées sur au moins 10 jeux.</p>
+    <ol class="bars" id="cheapest"></ol>
+  </section>
+
+  <section>
+    <h2>Comment se répartissent les réductions</h2>
+    <p class="note">Nombre de jeux selon leur meilleure réduction du jour, par tranches de 10 %.</p>
+    <div class="histo" id="histo" role="img"></div>
+    <div class="axis" id="axis" aria-hidden="true"></div>
+  </section>
+
+  <div class="two">
+    <section>
+      <h2>Réduction moyenne par boutique</h2>
+      <p class="note">Sur tous les jeux en promo dans la boutique aujourd'hui.</p>
+      <ol class="bars" id="savings"></ol>
+    </section>
+    <section>
+      <h2>Les styles de jeux les plus soldés</h2>
+      <p class="note">Tags posés par les joueurs sur Steam, parmi les jeux en promo.</p>
+      <ol class="bars" id="tags"></ol>
+    </section>
+  </div>
+</main>
+
+<footer class="wrap">
+  Calculé chaque jour à partir des prix de <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a> et des tags de <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>.
+</footer>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const nf = new Intl.NumberFormat("fr-FR");
+  const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+  // une liste de barres horizontales ; la valeur passe dans la barre quand celle-ci est assez longue
+  function bars(el, items, { value, label, max }) {
+    if (!items.length) { el.innerHTML = `<li class="empty">Pas encore assez de données.</li>`; return; }
+    const top = max ?? Math.max(...items.map(value));
+    el.innerHTML = items.map((it) => {
+      const w = Math.max(0.5, (value(it) / top) * 100);
+      return `<li class="bar" style="--w:${w}%">
+        <span class="name">${esc(it._name)}</span>
+        <span class="track"><span class="fill" style="width:${w}%"></span><span class="val ${w > 62 ? "inside" : ""}">${esc(label(it))}</span></span>
+      </li>`;
+    }).join("");
+  }
+
+  async function init() {
+    let d;
+    try {
+      const res = await fetch("data/insights.json", { cache: "no-cache" });
+      if (!res.ok) throw new Error(res.status);
+      d = await res.json();
+    } catch {
+      $("lede").textContent = "Impossible de charger les chiffres. Recharge la page dans quelques minutes.";
+      return;
+    }
+
+    const s = d.summary || {};
+    $("lede").innerHTML =
+      `Aujourd'hui, <strong>${nf.format(s.games)}</strong> jeux PC sont en promo, avec une meilleure réduction moyenne de ` +
+      `<strong>${Math.round(s.avg_best_savings)} %</strong>. ` +
+      `<strong>${nf.format(s.lowest_ever_games)}</strong> sont au prix le plus bas de leur histoire, et ` +
+      `${nf.format(s.multi_store_games)} sont vendus par plusieurs boutiques à la fois.`;
+    $("stamp").textContent = `Prix relevés le ${fmtDate.format(new Date(d.snapshot_ts))}, sur ${s.days_tracked} jour${s.days_tracked > 1 ? "s" : ""} de suivi.`;
+
+    // boutique la moins chère le plus souvent
+    const cheap = d.stores
+      .filter((x) => x.games_compared >= 10)
+      .map((x) => ({ ...x, _name: x.store_name, _pct: (100 * x.times_cheapest) / x.games_compared }))
+      .sort((a, b) => b._pct - a._pct);
+    bars($("cheapest"), cheap, {
+      value: (x) => x._pct, max: 100,
+      label: (x) => `${Math.round(x._pct)} % (${x.times_cheapest} jeux sur ${x.games_compared})`,
+    });
+
+    // réduction moyenne par boutique
+    const sav = d.stores.map((x) => ({ ...x, _name: x.store_name })).sort((a, b) => b.avg_savings_pct - a.avg_savings_pct);
+    bars($("savings"), sav, { value: (x) => x.avg_savings_pct, max: 100, label: (x) => `−${Math.round(x.avg_savings_pct)} %` });
+
+    // tags
+    const tags = d.tags.map((t) => ({ ...t, _name: t.tag }));
+    bars($("tags"), tags, { value: (t) => t.games, label: (t) => `${nf.format(t.games)} jeux` });
+
+    // histogramme des réductions (0-9 %, 10-19 %, …, 90 % et plus)
+    const counts = Array.from({ length: 10 }, (_, i) => d.discounts.find((b) => b.bucket === i * 10)?.games ?? 0);
+    const maxN = Math.max(1, ...counts);
+    const iTop = counts.indexOf(Math.max(...counts));
+    $("histo").setAttribute("aria-label", counts.map((n, i) => `${i * 10} à ${i * 10 + 9} % : ${n} jeux`).join(", "));
+    $("histo").innerHTML = counts.map((n, i) => `
+      <div class="col ${i === iTop ? "top" : ""}">
+        <span class="n">${n ? nf.format(n) : ""}</span>
+        <span class="stack" style="height:${(n / maxN) * 82}%"></span>
+      </div>`).join("");
+    $("axis").innerHTML = counts.map((_, i) => `<span>${i === 9 ? "90 %+" : `${i * 10} %`}</span>`).join("");
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

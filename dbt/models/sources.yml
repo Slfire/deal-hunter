@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Données brutes chargées telles quelles par src/transform/build_warehouse.py"
+    schema: raw
+    tables:
+      - name: deals
+        description: "Snapshots CheapShark /deals (un fichier par page)"
+      - name: stores
+        description: "Snapshots CheapShark /stores"
+      - name: games
+        description: "CheapShark /games?ids= : plus bas prix historique, une ligne par jeu et par snapshot"
+      - name: steam_prices
+        description: "Prix Steam en euros (appdetails filters=price_overview), une ligne par jeu et par snapshot"
+      - name: steam
+        description: "Fiches Steam de référence (cache data/ref/steam)"
+      - name: steamspy
+        description: "Tags utilisateurs SteamSpy (cache data/ref/steamspy)"

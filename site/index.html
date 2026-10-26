@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal Hunter</title>
 <meta name="description" content="Les promos sur les jeux PC, comparées entre boutiques, avec l'historique des prix pour savoir si c'est vraiment le bon moment d'acheter.">
+<link rel="alternate" type="application/rss+xml" title="Deal Hunter — plus bas historiques du jour" href="feed.xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -68,6 +69,18 @@
   }
   .check { flex-direction: row; align-items: center; gap: 8px; font-size: 15px; color: var(--tag); min-height: 40px; cursor: pointer; }
   .check input { width: 18px; height: 18px; accent-color: var(--sticker); }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 14px; font-size: 15px; }
+  .nav a { color: #c9cfdf; text-underline-offset: 3px; }
+  .nav a:hover { color: var(--tag); }
+  .wish-alert { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: var(--sticker); color: var(--ink); font-weight: 650; max-width: 64ch; }
+  .wish-alert button { font: inherit; font-weight: 750; background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; }
+  .understood { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; vertical-align: middle; }
+  .understood span { font-size: 13px; padding: 2px 8px; border-radius: 999px; background: var(--shelf-2); color: var(--tag); }
+  .eur { font-weight: 650; color: var(--ink); }
+  .wished { color: #b8860b; font-weight: 700; }
+  .follow { font: inherit; font-weight: 700; font-size: 15px; margin-top: 14px; padding: 9px 14px; border-radius: 4px; cursor: pointer;
+            border: 0; background: var(--ink); color: var(--tag); }
+  .follow[aria-pressed="true"] { background: var(--sticker); color: var(--ink); }
   .ai-toggle { font-weight: 650; }
   .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: #c9cfdf; }
   .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--sticker); }
@@ -199,6 +212,11 @@
   <h1>Deal Hunter</h1>
   <p class="lede">Les promos sur les jeux PC, comparées entre une trentaine de boutiques. Chaque jour, on note les prix pour te dire si une promo est vraiment la meilleure.</p>
   <p class="stamp" id="stamp">Chargement des prix…</p>
+  <nav class="nav" aria-label="Pages">
+    <a href="insights.html">Les chiffres du marché</a>
+    <a href="feed.xml">Flux RSS des plus bas historiques</a>
+  </nav>
+  <p class="wish-alert" id="wishAlert" hidden></p>
 </header>
 
 <div class="filters" role="search">
@@ -233,6 +251,7 @@
     <label class="field check"><input type="checkbox" id="lowOnly"> Plus bas historique</label>
     <label class="field check"><input type="checkbox" id="coopOnly"> Jouable en coop</label>
     <label class="field check"><input type="checkbox" id="goodOnly"> Bien notés</label>
+    <label class="field check"><input type="checkbox" id="wishOnly"> Ma liste</label>
     <span class="count" id="count" aria-live="polite"></span>
     <p class="ai-status" id="aiStatus" aria-live="polite" hidden></p>
   </div>
@@ -245,7 +264,7 @@
 </main>
 
 <footer class="wrap">
-  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix sont en dollars US, tels qu'affichés par les boutiques.
+  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>.
 </footer>
 
 <dialog id="sheet" aria-labelledby="sheet-title"></dialog>
@@ -254,6 +273,7 @@
 (() => {
   const PAGE = 60;
   const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD" });
+  const fmtEur = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const fmtMonth = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
   const fmtShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
@@ -278,6 +298,66 @@
   const AI_LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3";
   const AI_TOP = 36;          // on montre les jeux les plus proches de la description
   const ai = { on: false, ready: null, extractor: null, index: null, vectors: null, scales: null, scores: null, run: 0 };
+
+  // Les contraintes reconnues dans la phrase deviennent de vrais filtres,
+  // et sont retirées du texte envoyé au modèle (qui se concentre alors sur le type de jeu).
+  const B = "(?:^|[\\s,.;!?'’])";            // début de mot, y compris devant « à »
+  const RULES = [
+    { re: new RegExp(B + "(?:moins de|sous|max(?:imum)?|à moins de|pour moins de)\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:€|\\$|euros?|dollars?|balles)?", "i"),
+      apply: (c, m) => { c.maxPrice = parseFloat(m[1].replace(",", ".")); }, label: (m) => `moins de ${m[1]} $` },
+    { re: new RegExp(B + "(?:pas cher|pas chère|petit prix|bon marché|à petit budget|budget)", "i"),
+      apply: (c) => { c.maxPrice = c.maxPrice ?? 10; }, label: () => "moins de 10 $" },
+    { re: new RegExp(B + "(?:à|a) (?:deux|2|plusieurs|trois|3|quatre|4)|entre (?:potes|amis|copains)|avec (?:des |mes )?(?:potes|amis|copains)|en co-?op\\w*|coop\\w*", "i"),
+      apply: (c) => { c.coop = true; }, label: () => "jouable en coop" },
+    { re: new RegExp(B + "(?:très |tres )?bien not[ée]e?s?|culte|chef[- ]d['’](?:œ|oe)uvre|incontournable|excellent", "i"),
+      apply: (c) => { c.minRating = 80; }, label: () => "bien noté" },
+    { re: new RegExp(B + "(?:grosse|énorme|enorme|grosses) (?:promo|réduction|reduction|remise)s?", "i"),
+      apply: (c) => { c.minSave = 75; }, label: () => "−75 % et plus" },
+    { re: new RegExp(B + "plus bas (?:prix )?(?:historique|jamais vu)", "i"),
+      apply: (c) => { c.lowOnly = true; }, label: () => "plus bas historique" },
+  ];
+
+  function parseQuery(text) {
+    const c = { labels: [] };
+    let rest = ` ${text} `;
+    for (const r of RULES) {
+      const m = rest.match(r.re);
+      if (m) { r.apply(c, m); c.labels.push(r.label(m)); rest = rest.replace(m[0], " "); }
+    }
+    c.text = rest.replace(/\s+/g, " ").trim();
+    // mots vides retirés seulement pour savoir s'il reste une vraie description
+    c.meaningful = c.text.replace(/\b(un|une|des|le|la|les|jeu|jeux|pour|avec|qui|et|de|du|en|je|veux|cherche)\b/gi, "").trim().length > 0;
+    return c;
+  }
+
+  // Les tags SteamSpy sont en anglais : petit dictionnaire pour que les mots français les retrouvent.
+  const SYNONYMS = {
+    horreur: "horror", gestion: "management", ferme: "farming", survie: "survival", plateforme: "platformer",
+    plateformes: "platformer", cartes: "card", carte: "card", relaxant: "relaxing", chill: "relaxing", cosy: "cozy",
+    cozy: "cozy", histoire: "story", narratif: "story", "monde": "open world", difficile: "difficult", dur: "difficult",
+    stratégie: "strategy", strategie: "strategy", course: "racing", voiture: "racing", zombie: "zombies", zombies: "zombies",
+    construction: "building", exploration: "exploration", enquête: "detective", enquete: "detective", espace: "space",
+    spatial: "space", pixel: "pixel graphics", tour: "turn-based", tactique: "tactical", infiltration: "stealth",
+    roguelike: "rogue", roguelite: "rogue", rogue: "rogue", metroidvania: "metroidvania", soulslike: "souls-like",
+    tir: "shooter", fps: "fps", combat: "action", aventure: "adventure", mignon: "cute", drôle: "funny", drole: "funny",
+    sombre: "dark", médiéval: "medieval", medieval: "medieval", pirates: "pirates", dragons: "dragons", simulation: "simulation",
+    rpg: "rpg", jdr: "rpg", puzzle: "puzzle", énigmes: "puzzle", enigmes: "puzzle", musique: "music", sport: "sports", foot: "football",
+  };
+
+  function keywordTerms(text) {
+    return [...new Set(text.toLowerCase().split(/[^\p{L}\p{N}-]+/u)
+      .filter((w) => w.length >= 3)
+      .map((w) => SYNONYMS[w] || (w.length >= 4 ? w : null))
+      .filter(Boolean))];
+  }
+
+  function hybridBoost(g, terms) {
+    if (!terms.length) return 0;
+    const hay = [...(g.tags || []), ...(g.genres || []), g.title].join(" | ").toLowerCase();
+    const hits = terms.filter((t) => hay.includes(t)).length;
+    const rating = g.steam_pct != null ? Math.min(1, Math.max(0, (g.steam_pct - 70) / 30)) : 0;
+    return Math.min(hits, 3) * 0.03 + rating * 0.02;
+  }
 
   function aiStatus(html) {
     $("aiStatus").hidden = !html;
@@ -320,21 +400,42 @@
     return ai.ready;
   }
 
+  function understoodHtml(c) {
+    if (!c.labels.length) return "";
+    return ` Compris : <span class="understood">${c.labels.map((l) => `<span>${esc(l)}</span>`).join("")}</span>`;
+  }
+
   async function runAiSearch() {
     const q = $("q").value.trim();
     const run = ++ai.run;
-    if (!q) { ai.scores = null; applyFilters(); return; }
+    if (!q) { ai.scores = null; ai.constraints = null; applyFilters(); return; }
+
+    const c = parseQuery(q);
+    ai.constraints = c;
+    if (!c.meaningful) {                   // que des contraintes : pas besoin du modèle
+      ai.scores = null;
+      aiStatus(`Filtré selon ta demande.${understoodHtml(c)}`);
+      applyFilters();
+      return;
+    }
+
     try { await loadAi(); } catch { return; }
-    const out = await ai.extractor(`query: ${q}`, { pooling: "mean", normalize: true });
+    const out = await ai.extractor(`query: ${c.text}`, { pooling: "mean", normalize: true });
     if (run !== ai.run) return;            // une frappe plus récente a pris le relais
     const qv = out.data, dim = ai.index.dim, V = ai.vectors, S = ai.scales;
+    const terms = keywordTerms(c.text);
+    const byId = new Map(data.games.map((g) => [g.id, g]));
     ai.scores = new Map();
     ai.index.ids.forEach((id, i) => {
+      const g = byId.get(id);
+      if (!g) return;
       let dot = 0;
       const off = i * dim;
       for (let j = 0; j < dim; j++) dot += V[off + j] * qv[j];
-      ai.scores.set(id, dot * S[i]);
+      // score hybride : sens (embeddings) + mots exacts dans les tags/genres/titre + petit bonus qualité
+      ai.scores.set(id, dot * S[i] + hybridBoost(g, terms));
     });
+    aiStatus(`Les jeux les plus proches de ta description s'affichent en premier.${understoodHtml(c)}`);
     $("sort").value = "relevance";
     applyFilters();
   }
@@ -361,6 +462,7 @@
       runAiSearch();
     } else {
       ai.scores = null;
+      ai.constraints = null;
       $("q").value = "";             // une description n'a pas de sens comme recherche par titre
       if ($("sort").value === "relevance") $("sort").value = "savings";
       aiStatus("");
@@ -377,8 +479,16 @@
     const genre = $("genre").value;
     const coopOnly = $("coopOnly").checked;
     const goodOnly = $("goodOnly").checked;
+    const wishOnly = $("wishOnly").checked;
+    const c = (ai.on && ai.constraints) || {};
 
     filtered = data.games.filter((g) =>
+      (c.maxPrice == null || g.best_price <= c.maxPrice) &&
+      (!c.coop || g.coop) &&
+      (c.minRating == null || (g.steam_pct ?? 0) >= c.minRating) &&
+      (c.minSave == null || g.best_savings >= c.minSave) &&
+      (!c.lowOnly || g.is_lowest_ever) &&
+      (!wishOnly || wish.has(g.id)) &&
       (!q || g.title.toLowerCase().includes(q)) &&
       (!ai.scores || ai.scores.has(g.id)) &&
       (!store || g.offers.some((o) => String(o.store_id) === store)) &&
@@ -408,10 +518,15 @@
     $("grid").innerHTML = "";
     shown = 0;
     renderMore();
-    $("count").textContent = ai.scores
+    $("count").textContent = wishOnly && !filtered.length ? "" : ai.scores
       ? `Les ${filtered.length} jeux les plus proches`
       : `${filtered.length} jeu${filtered.length > 1 ? "x" : ""}`;
     $("empty").hidden = filtered.length > 0;
+    $("empty").textContent = wishOnly && !wish.size
+      ? "Ta liste est vide. Ouvre un jeu et clique sur « Suivre ce jeu » pour l'y ajouter."
+      : wishOnly
+        ? "Aucun jeu de ta liste n'est en promo aujourd'hui avec ces filtres."
+        : "Aucun jeu ne correspond. Élargis la réduction ou retire un filtre.";
   }
 
   function cardHtml(g, i) {
@@ -430,7 +545,9 @@
           <span class="meta">
             ${g.is_lowest_ever ? `<span class="low-badge">${g.full_history ? "Plus bas historique" : "Plus bas relevé"}</span>` : ""}
             <span>${nStores > 1 ? `${nStores} boutiques` : esc(storeName(g.offers[0].store_id))}</span>
+            ${g.eur != null ? `<span class="eur">${esc(fmtEur.format(g.eur))} sur Steam</span>` : ""}
             ${rating ? `<span>${rating}</span>` : ""}
+            ${wish.has(g.id) ? '<span class="wished">Dans ta liste</span>' : ""}
           </span>
         </span>
       </button>`;
@@ -443,6 +560,34 @@
     const left = filtered.length - shown;
     $("more").hidden = left <= 0;
     $("more").textContent = `Afficher ${Math.min(PAGE, left)} jeux de plus`;
+  }
+
+  // ---------- liste de souhaits (gardée dans ce navigateur, sans compte) ----------
+  const WISH_KEY = "dealhunter.wishlist";
+  const wish = new Map();               // id -> titre
+  try {
+    for (const [id, title] of Object.entries(JSON.parse(localStorage.getItem(WISH_KEY) || "{}"))) wish.set(Number(id), title);
+  } catch { /* stockage indisponible : la liste vivra le temps de la visite */ }
+
+  function saveWish() {
+    try { localStorage.setItem(WISH_KEY, JSON.stringify(Object.fromEntries(wish))); } catch { /* idem */ }
+  }
+
+  function toggleWish(g) {
+    if (wish.has(g.id)) wish.delete(g.id); else wish.set(g.id, g.title);
+    saveWish();
+    renderWishAlert();
+  }
+
+  function renderWishAlert() {
+    const inPromo = data.games.filter((g) => wish.has(g.id));
+    const atLow = inPromo.filter((g) => g.is_lowest_ever);
+    const el = $("wishAlert");
+    if (!atLow.length) { el.hidden = true; return; }
+    const names = atLow.slice(0, 3).map((g) => esc(g.title)).join(", ") + (atLow.length > 3 ? "…" : "");
+    el.innerHTML = `${atLow.length === 1 ? "Un jeu de ta liste est" : `${atLow.length} jeux de ta liste sont`} au plus bas historique : ${names}. <button type="button" id="showWish">Voir ma liste</button>`;
+    el.hidden = false;
+    $("showWish").onclick = () => { $("wishOnly").checked = true; applyFilters(); $("grid").scrollIntoView({ behavior: "smooth" }); };
   }
 
   // ---------- fiche jeu ----------
@@ -510,7 +655,8 @@
       </tr>`).join("");
 
     const chips = [
-      ...(g.genres || []),
+      ...(g.tags || []).slice(0, 6),
+      ...(g.genres || []).filter((x) => !(g.tags || []).some((t) => t.toLowerCase() === x.toLowerCase())).slice(0, 3),
       ...(g.coop ? ["Coop"] : []),
       ...(g.multi && !g.coop ? ["Multijoueur"] : []),
     ];
@@ -533,6 +679,8 @@
         ${g.desc ? `<p class="desc">${esc(g.desc)}</p>` : ""}
         ${chips.length ? `<ul class="chips">${chips.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
         <p class="verdict">${verdict(g)}</p>
+        ${g.eur != null ? `<p class="desc">Sur Steam France : <strong>${esc(fmtEur.format(g.eur))}</strong>${g.eur_normal && g.eur_normal > g.eur ? ` au lieu de ${esc(fmtEur.format(g.eur_normal))}` : ""}.</p>` : ""}
+        <button class="follow" id="follow" aria-pressed="${wish.has(g.id)}">${wish.has(g.id) ? "Suivi : retirer de ma liste" : "Suivre ce jeu"}</button>
         <h3>Prix par boutique</h3>
         <table>
           <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th class="num"><span hidden>Lien</span></th></tr></thead>
@@ -542,7 +690,14 @@
         <div id="chart"><p class="chart-note">Chargement de l'historique…</p></div>
       </div>`;
     $("close").onclick = () => sheet.close();
+    $("follow").onclick = () => {
+      toggleWish(g);
+      const on = wish.has(g.id);
+      $("follow").setAttribute("aria-pressed", on);
+      $("follow").textContent = on ? "Suivi : retirer de ma liste" : "Suivre ce jeu";
+    };
     sheet.showModal();
+    history.replaceState(null, "", `#jeu-${g.id}`);   // lien partageable vers cette fiche
 
     try {
       const res = await fetch(`data/history/${g.id}.json`);
@@ -574,7 +729,7 @@
     $("genre").insertAdjacentHTML("beforeend", (data.genres || []).map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join(""));
     $("store").insertAdjacentHTML("beforeend", opts.map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)}</option>`).join(""));
 
-    for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly"]) {
+    for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly", "wishOnly"]) {
       $(id).addEventListener(id === "q" ? "input" : "change", id === "q" ? onSearchInput : applyFilters);
     }
     $("more").addEventListener("click", renderMore);
@@ -584,8 +739,22 @@
       if (card) openSheet(filtered[Number(card.dataset.i)]);
     });
     $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sheet").close(); });
+    $("sheet").addEventListener("close", () => {
+      history.replaceState(null, "", location.pathname + location.search);
+      applyFilters();                     // met à jour la mention « Dans ta liste » sur les cartes
+    });
+
+    // lien direct vers une fiche : …/#jeu-12345 (utilisé par le flux RSS)
+    const openFromHash = () => {
+      const m = location.hash.match(/^#jeu-(\d+)$/);
+      const g = m && data.games.find((x) => x.id === Number(m[1]));
+      if (g && !$("sheet").open) openSheet(g);
+    };
+    window.addEventListener("hashchange", openFromHash);
 
     applyFilters();
+    renderWishAlert();
+    openFromHash();
   }
 
   init();

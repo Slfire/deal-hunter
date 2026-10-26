@@ -3,3 +3,8 @@
 __pycache__/
 data/warehouse/
 site/data/
+site/feed.xml
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+.pytest_cache/

@@ -12,7 +12,7 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write         # committer les nouveaux snapshots
     steps:
@@ -43,10 +43,24 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/steam_details.py --max-new 400
 
-      - name: Construire le warehouse
+      - name: Tags joueurs (SteamSpy)
+        continue-on-error: true
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+        run: python src/ingestion/steamspy_tags.py --max-new 500
+
+      - name: Prix Steam en euros
+        continue-on-error: true
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+        run: python src/ingestion/steam_prices.py
+
+      - name: Construire le warehouse (chargement + dbt build)
         run: python src/transform/build_warehouse.py
 
-      - name: Exporter les données du site
+      - name: Exporter les données du site (+ insights, flux RSS)
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python src/export/export_site_data.py
 
       - name: Cache du modèle d'IA (téléchargé une seule fois)

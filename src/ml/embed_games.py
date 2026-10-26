@@ -46,16 +46,18 @@ BATCH = 32
 log = logging.getLogger("embed")
 
 GAMES_SQL = """
-SELECT g.game_id, g.title, g.genres, g.has_coop, g.has_multi, g.description, g.developers
+SELECT g.game_id, g.title, g.genres, g.tags, g.has_coop, g.has_multi, g.description, g.developers
 FROM marts.dim_games g
 WHERE g.game_id IN (SELECT DISTINCT game_id FROM marts.current_deals)
 ORDER BY g.game_id
 """
 
 
-def game_text(title, genres, coop, multi, description, developers) -> str:
+def game_text(title, genres, tags, coop, multi, description, developers) -> str:
     """Le texte qui représente un jeu. Ce qu'on met ici, c'est ce que la recherche « comprend »."""
     parts = [title]
+    if tags:   # les tags joueurs sont les mots les plus précis : on les place en tête
+        parts.append("Tags : " + ", ".join(tags[:10]))
     if genres:
         parts.append("Genres : " + ", ".join(genres))
     modes = []
@@ -143,8 +145,9 @@ def main() -> int:
 
     ids = [r[0] for r in rows]
     texts = [game_text(*r[1:]) for r in rows]
-    with_desc = sum(1 for r in rows if r[5])
-    log.info("%d jeux à indexer (%d avec description Steam)", len(ids), with_desc)
+    with_desc = sum(1 for r in rows if r[6])
+    with_tags = sum(1 for r in rows if r[3])
+    log.info("%d jeux à indexer (%d avec description Steam, %d avec tags)", len(ids), with_desc, with_tags)
 
     model = FakeEmbedder() if args.fake else E5Onnx()
     vectors = model.encode(texts)

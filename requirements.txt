@@ -1,8 +1,11 @@
 requests>=2.32
 python-dotenv>=1.0
 duckdb>=1.1
+dbt-duckdb>=1.10
 # recherche IA (embeddings)
 numpy>=1.26
 onnxruntime>=1.18
 tokenizers>=0.19
 huggingface_hub>=0.23
+# tests
+pytest>=8

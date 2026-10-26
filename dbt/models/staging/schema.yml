@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: stg_stores
+    description: "Boutiques CheapShark, dernière version connue"
+    columns:
+      - name: store_id
+        tests: [unique, not_null]
+
+  - name: stg_deals
+    description: "Deals typés et nettoyés (casts, faux zéros -> NULL, timestamps)"
+    columns:
+      - name: deal_id
+        tests: [not_null]
+      - name: game_id
+        tests: [not_null]
+      - name: store_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_stores')
+                field: store_id
+
+  - name: stg_games_info
+    description: "Plus bas prix historique CheapShark par jeu"
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+
+  - name: stg_steam
+    description: "Fiches Steam : description FR, genres, développeurs, coop/multi"
+    columns:
+      - name: steam_app_id
+        tests: [unique, not_null]
+
+  - name: stg_steamspy_tags
+    description: "Tags utilisateurs SteamSpy (12 premiers par nombre de votes)"
+    columns:
+      - name: steam_app_id
+        tests: [unique, not_null]
+
+  - name: stg_steam_prices
+    description: "Dernier prix Steam en euros par jeu"
+    columns:
+      - name: steam_app_id
+        tests: [unique, not_null]
+      - name: currency
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["EUR"]

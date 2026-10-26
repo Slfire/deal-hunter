@@ -1,0 +1,8 @@
+dealhunter:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # chemin de la base : fourni par build_warehouse.py, ou relatif au dossier dbt/ en lancement manuel
+      path: "{{ env_var('DEALHUNTER_DB', '../data/warehouse/dealhunter.duckdb') }}"
+      threads: 4

@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: dim_stores
+    description: "Boutiques"
+    columns:
+      - name: store_id
+        tests: [unique, not_null]
+
+  - name: dim_games
+    description: "Un jeu = une ligne, enrichi (plus bas historique, fiche Steam, tags, prix en euros)"
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: lowest_ever_price
+        description: "Le plus bas entre l'historique CheapShark et nos propres relevés"
+        tests: [not_null]
+
+  - name: fct_price_history
+    description: "Un prix par jeu x boutique x jour : la base de la future prédiction de promos"
+    columns:
+      - name: game_id
+        tests: [not_null]
+
+  - name: current_deals
+    description: "Deals du dernier snapshot, prêts pour le site"
+    columns:
+      - name: game_id
+        tests: [not_null]
+      - name: deal_url
+        tests: [not_null]
+
+  - name: insights_store_stats
+    description: "Statistiques par boutique pour la page Insights"
+    columns:
+      - name: store_id
+        tests: [unique, not_null]
