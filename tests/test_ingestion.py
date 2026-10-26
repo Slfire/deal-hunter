@@ -69,3 +69,27 @@ def test_get_with_retry_does_not_retry_client_errors(monkeypatch):
     with pytest.raises(RuntimeError):
         common.get_with_retry(s, "https://x")
     assert s.n == 1
+
+
+def test_fill_ref_cache_skips_bad_items_and_stops_when_source_is_broken(tmp_path, monkeypatch):
+    monkeypatch.setattr(common, "REF_DIR", tmp_path)
+
+    def fetch(item):
+        if item in {"2", "3"}:
+            raise ValueError("page HTML au lieu de JSON")
+        return {"id": item}
+
+    # un ou deux éléments bizarres : on les saute, on continue
+    assert common.fill_ref_cache("src", ["1", "2", "3", "4"], fetch, max_new=10, sleep_s=0, refresh_days=60) == 2
+    assert set(common.read_json(tmp_path / "src/_index.json")) == {"1", "4"}
+
+    # tout échoue : arrêt après MAX_FAILURES_IN_A_ROW tentatives, pas 50
+    calls = []
+
+    def broken(item):
+        calls.append(item)
+        raise ValueError("source cassée")
+
+    ids = [str(i) for i in range(100, 150)]
+    assert common.fill_ref_cache("src2", ids, broken, max_new=50, sleep_s=0, refresh_days=60) == 0
+    assert len(calls) == common.MAX_FAILURES_IN_A_ROW

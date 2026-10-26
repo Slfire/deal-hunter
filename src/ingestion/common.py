@@ -20,6 +20,7 @@ APP_NAME = "DealHunter"
 APP_VERSION = "0.2"
 MAX_RETRIES = 5
 TIMEOUT = 30
+MAX_FAILURES_IN_A_ROW = 5     # au-delà, une source de référence est considérée comme cassée pour ce run
 
 log = logging.getLogger("ingestion")
 
@@ -137,9 +138,23 @@ def fill_ref_cache(name: str, ids: list[str], fetch, max_new: int, sleep_s: floa
              name, len(ids), len(missing), len(stale), len(todo), max_new)
 
     done = 0
+    failures_in_a_row = 0
     try:
         for k, item in enumerate(todo):
-            write_json(cache_dir / f"{item}.json.gz", fetch(item))
+            try:
+                payload = fetch(item)
+            except (ValueError, KeyError, TypeError) as exc:
+                # réponse inattendue pour CET élément (page HTML, JSON incomplet…) : on le saute
+                failures_in_a_row += 1
+                log.warning("%s : réponse inattendue pour %s, ignoré (%s)", name, item, exc)
+                if failures_in_a_row >= MAX_FAILURES_IN_A_ROW:
+                    log.error("%s : %d échecs d'affilée, la source a sans doute changé : arrêt pour ce run",
+                              name, failures_in_a_row)
+                    break
+                time.sleep(sleep_s)
+                continue
+            failures_in_a_row = 0
+            write_json(cache_dir / f"{item}.json.gz", payload)
             index[item] = date.today().isoformat()
             done += 1
             if done % 50 == 0:

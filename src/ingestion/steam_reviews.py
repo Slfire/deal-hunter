@@ -70,7 +70,17 @@ def main() -> int:
     def fetch(app_id: str):
         params = {"json": 1, "filter": "all", "language": "all", "review_type": "all",
                   "purchase_type": "all", "num_per_page": 40}
-        return trim(get_with_retry(session, URL.format(app_id=app_id), params=params, allow_empty=False).json())
+        resp = get_with_retry(session, URL.format(app_id=app_id), params=params, allow_empty=False)
+        ctype = resp.headers.get("Content-Type", "")
+        try:
+            payload = resp.json()
+        except ValueError:
+            # on garde la trace de ce que Steam a vraiment renvoyé, pour comprendre
+            raise ValueError(f"réponse non JSON : HTTP {resp.status_code}, {ctype or 'sans type'}, "
+                             f"URL {resp.url}, début : {resp.text[:160]!r}") from None
+        if not isinstance(payload, dict) or payload.get("success") != 1:
+            raise ValueError(f"réponse JSON inattendue : {str(payload)[:160]}")
+        return trim(payload)
 
     fill_ref_cache("steam_reviews", ids, fetch, args.max_new, args.sleep, args.refresh_days)
     return 0
