@@ -113,7 +113,7 @@ def load_raw(con: duckdb.DuckDBPyConnection, kind: str, files: list[Path], colum
         SELECT {cols},
                {ts_expr} AS snapshot_ts,
                regexp_extract(filename, '(data/raw/.*)$', 1) AS source_file
-        FROM read_json(?, columns = {duck_struct(columns)}, format = 'array', filename = true)
+        FROM read_json(?, columns = {duck_struct(columns)}, format = 'array', filename = true, compression = 'auto_detect')
     """, [abs_files])
     con.executemany("INSERT INTO raw._loaded_files (source_file) VALUES (?)", [[f] for f in new_files])
     n = con.execute(f"SELECT count(*) FROM raw.{kind} WHERE source_file IN (SELECT unnest(?))", [new_files]).fetchone()[0]
@@ -236,8 +236,8 @@ def main() -> int:
         log.info("Full refresh : base supprimée")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    deal_files = sorted(RAW_DIR.glob("deals/*/*/page_*.json"))
-    store_files = sorted(RAW_DIR.glob("stores/*/stores_*.json"))
+    deal_files = sorted(RAW_DIR.glob("deals/*/*/page_*.json*"))
+    store_files = sorted(RAW_DIR.glob("stores/*/stores_*.json*"))
     if not deal_files or not store_files:
         log.error("Pas de données brutes dans %s : lance d'abord snapshot.py", RAW_DIR)
         return 1

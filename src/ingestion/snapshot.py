@@ -6,8 +6,8 @@ Récupère :
   - les deals paginés       (/deals)
 
 Et sauvegarde le JSON brut, sans aucune transformation, dans :
-  data/raw/stores/YYYY-MM-DD/stores_<HHMMSS>.json
-  data/raw/deals/YYYY-MM-DD/<HHMMSS>/page_0000.json ...
+  data/raw/stores/YYYY-MM-DD/stores_<HHMMSS>.json.gz
+  data/raw/deals/YYYY-MM-DD/<HHMMSS>/page_0000.json.gz ...
   data/raw/deals/YYYY-MM-DD/<HHMMSS>/_manifest.json
 
 Usage :
@@ -22,6 +22,7 @@ Config (.env) :
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import logging
 import os
@@ -95,8 +96,10 @@ def get_with_retry(session: requests.Session, url: str, params: dict | None = No
 # Stockage RAW
 # --------------------------------------------------------------------------
 def write_json(path: Path, payload) -> None:
+    """Écrit le JSON tel quel. Si le nom finit par .gz, compresse (≈ 8x plus léger, lisible direct par DuckDB)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "wt", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
 
 
@@ -106,7 +109,7 @@ def write_json(path: Path, payload) -> None:
 def snapshot_stores(session: requests.Session, run_ts: datetime) -> int:
     resp = get_with_retry(session, f"{BASE_URL}/stores")
     stores = resp.json()
-    path = RAW_DIR / "stores" / run_ts.strftime("%Y-%m-%d") / f"stores_{run_ts.strftime('%H%M%S')}.json"
+    path = RAW_DIR / "stores" / run_ts.strftime("%Y-%m-%d") / f"stores_{run_ts.strftime('%H%M%S')}.json.gz"
     write_json(path, stores)
     log.info("Stores : %d boutiques -> %s", len(stores), path.relative_to(PROJECT_ROOT))
     return len(stores)
@@ -132,7 +135,7 @@ def snapshot_deals(session: requests.Session, run_ts: datetime, max_pages: int, 
             log.info("Page %d vide, fin de pagination.", page)
             break
 
-        write_json(run_dir / f"page_{page:04d}.json", deals)
+        write_json(run_dir / f"page_{page:04d}.json.gz", deals)
         total_deals += len(deals)
         log.info("Page %d : %d deals", page, len(deals))
 

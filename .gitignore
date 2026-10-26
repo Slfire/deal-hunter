@@ -1,3 +1,4 @@
 .env
 .venv/
-data/
+__pycache__/
+data/warehouse/

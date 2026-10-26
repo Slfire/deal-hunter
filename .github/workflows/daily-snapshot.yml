@@ -1,0 +1,48 @@
+name: Snapshot quotidien
+
+on:
+  schedule:
+    - cron: "17 5 * * *"     # tous les jours à 05:17 UTC (06:17 / 07:17 heure de Paris)
+  workflow_dispatch:          # bouton "Run workflow" pour lancer à la main
+
+permissions:
+  contents: write             # nécessaire pour committer les nouveaux snapshots
+
+concurrency:
+  group: daily-snapshot       # jamais deux runs en même temps
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Snapshot CheapShark (toutes les pages)
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+        run: python src/ingestion/snapshot.py --max-pages 0
+
+      - name: Construire le warehouse (contrôle que le brut est exploitable)
+        run: python src/transform/build_warehouse.py
+
+      - name: Committer le snapshot du jour
+        run: |
+          git config user.name  "dealhunter-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/raw
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau à committer"
+          else
+            git commit -m "data: snapshot $(date -u +%Y-%m-%d)"
+            git push
+          fi
