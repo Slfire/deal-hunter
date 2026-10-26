@@ -20,7 +20,7 @@ flowchart LR
     subgraph "GitHub Actions — chaque matin"
         ING[Ingestion Python]
         RAW[(data/raw + data/ref<br/>JSON brut gzip<br/>versionné dans git)]
-        LLM[GitHub Models<br/>« Le jeu en bref »]
+        LLM[LLM Groq<br/>« Le jeu en bref »]
         DBT[DuckDB + dbt<br/>raw → staging → marts<br/>+ tests de qualité]
         EMB[Embeddings e5-small<br/>recherche + similaires]
         PUB[Export JSON, pages jeux,<br/>RSS, sitemap, santé, doc dbt]
@@ -64,9 +64,9 @@ Lignage et description de chaque colonne : [documentation dbt](https://slfire.gi
 
 **Jeux similaires.** Les 6 voisins les plus proches de chaque jeu dans l'espace des embeddings, en écartant les éditions du même jeu.
 
-**Le jeu en bref.** Un LLM (GitHub Models, gratuit dans GitHub Actions avec le `GITHUB_TOKEN`) résume chaque jeu en une phrase, dit pour qui il est fait et cite trois caractéristiques marquantes. Il n'a le droit de s'appuyer que sur la fiche officielle Steam et les tags des joueurs, et le site l'affiche comme tel : ce n'est pas un résumé des avis. La sortie est en JSON, contrôlée avant publication, et un résumé n'est régénéré que si sa source change (empreinte de la fiche et des tags).
+**Le jeu en bref.** Un LLM (Llama 3.3 70B via l'API gratuite de Groq, ou n'importe quelle API compatible OpenAI) résume chaque jeu en une phrase, dit pour qui il est fait et cite trois caractéristiques marquantes. Il n'a le droit de s'appuyer que sur la fiche officielle Steam et les tags des joueurs, et le site l'affiche comme tel : ce n'est pas un résumé des avis. La sortie est en JSON, contrôlée avant publication, et un résumé n'est régénéré que si sa source change (empreinte de la fiche et des tags).
 
-*Historique : la première version résumait les avis des joueurs, mais l'endpoint public des avis Steam (`/appreviews`) redirige vers la page d'accueil depuis octobre 2026, y compris hors des serveurs de GitHub. Plutôt que de présenter autre chose comme « l'avis des joueurs », la fonction a été recentrée sur la fiche du jeu.*
+*Historique : la première version résumait les avis des joueurs, mais l'endpoint public des avis Steam (`/appreviews`) redirige vers la page d'accueil depuis octobre 2026, y compris hors des serveurs de GitHub. Plutôt que de présenter autre chose comme « l'avis des joueurs », la fonction a été recentrée sur la fiche du jeu. Le LLM passait d'abord par GitHub Models, retiré par GitHub le 30 juillet 2026 : d'où une configuration indépendante du fournisseur.*
 
 ## Options à activer (facultatif)
 
@@ -77,7 +77,7 @@ Tout fonctionne sans configuration supplémentaire. Ces options s'activent en aj
 | Bot Discord | `DISCORD_WEBHOOK_URL` | Salon Discord → Modifier → Intégrations → Webhooks → Nouveau → Copier l'URL |
 | Lake sur Cloudflare R2 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Compte Cloudflare gratuit → R2 → créer un bucket → créer un jeton d'API R2 |
 | Nom de domaine | variable `SITE_URL` | Settings → Pages → Custom domain, puis `SITE_URL=https://ton-domaine.fr/` |
-| Autre modèle de LLM | variable `DEALHUNTER_LLM_MODEL` | Par défaut `openai/gpt-4.1-mini` |
+| « Le jeu en bref » (IA) | `LLM_API_KEY` | Compte gratuit sur console.groq.com (sans carte) → API Keys → Create. Autre fournisseur : variables `LLM_BASE_URL` et `LLM_MODEL` (ex. Mistral : `https://api.mistral.ai/v1`, `mistral-small-latest`) |
 
 ## Lancer en local
 

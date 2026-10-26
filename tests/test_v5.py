@@ -53,9 +53,9 @@ def test_game_source_uses_only_official_sheet_and_tags(tmp_path, monkeypatch):
     assert game_briefs.game_source("11") is None and game_briefs.game_source("12") is None and game_briefs.game_source("99") is None
 
 
-def test_generate_calls_github_models_and_parses_json():
+def test_generate_calls_openai_compatible_api_and_parses_json():
     class Resp:
-        status_code = 200
+        status_code, headers, text = 200, {}, ""
 
         def json(self):
             return {"choices": [{"message": {"content": json.dumps(
@@ -63,26 +63,52 @@ def test_generate_calls_github_models_and_parses_json():
 
     class Session:
         def post(self, url, json, timeout):
-            assert url == game_briefs.ENDPOINT
+            assert url == "https://api.groq.com/openai/v1/chat/completions"
+            assert json["model"] == "llama-3.3-70b-versatile"
             assert json["response_format"] == {"type": "json_object"}
             assert "ne prétends jamais" in json["messages"][0]["content"]
             assert "Hades" in json["messages"][1]["content"]
             return Resp()
 
-    out = game_briefs.generate(Session(), "openai/gpt-4.1-mini", {"titre": "Hades", "description": "..."})
+    out = game_briefs.generate(Session(), game_briefs.DEFAULT_BASE_URL + "/", game_briefs.DEFAULT_MODEL,
+                               {"titre": "Hades", "description": "..."})
     assert out["points"] == ["Combats rapides"]
 
 
-def test_generate_stops_on_quota():
+def test_parse_content_tolerates_code_fences():
+    fenced = '```json\n{"en_bref": "Un jeu.", "points": []}\n```'
+    assert game_briefs.parse_content(fenced)["en_bref"] == "Un jeu."
+    with pytest.raises(ValueError):
+        game_briefs.parse_content("désolé, je ne peux pas")
+
+
+def test_non_json_api_response_is_reported_clearly():
+    # ce qui s'est passé avec GitHub Models retiré : HTTP 200 mais pas de JSON
     class Resp:
-        status_code, text = 429, "rate limit"
+        status_code, headers, text = 200, {"Content-Type": "text/html"}, "<!DOCTYPE html>"
+
+        def json(self):
+            raise ValueError("Expecting value")
+
+    class Session:
+        def post(self, *a, **k):
+            return Resp()
+
+    with pytest.raises(ValueError, match="text/html"):
+        game_briefs.generate(Session(), "https://x", "m", {})
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_generate_stops_on_auth_or_quota(status):
+    class Resp:
+        status_code, text, headers = status, "refusé", {}
 
     class Session:
         def post(self, *a, **k):
             return Resp()
 
     with pytest.raises(game_briefs.QuotaReached):
-        game_briefs.generate(Session(), "m", {})
+        game_briefs.generate(Session(), "https://x", "m", {})
 
 
 # ---------- Discord ----------

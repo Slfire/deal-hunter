@@ -6,10 +6,14 @@ développeur) et les tags posés par les joueurs (SteamSpy). Ce n'est pas un ré
 le site l'affiche comme « résumé IA de la fiche du jeu ».
 (L'endpoint public des avis Steam, /appreviews, redirige vers l'accueil depuis octobre 2026.)
 
-LLM : GitHub Models (https://models.github.ai), gratuit dans GitHub Actions avec le
-GITHUB_TOKEN du workflow (permission `models: read`). Aucune clé à gérer.
+LLM : n'importe quelle API compatible OpenAI (/chat/completions). Par défaut Groq, gratuit
+sans carte bancaire (https://console.groq.com) avec Llama 3.3 70B. Configuration :
+  LLM_API_KEY   la clé (secret du repo)            — sans clé, l'étape ne fait rien
+  LLM_BASE_URL  défaut https://api.groq.com/openai/v1   (Mistral : https://api.mistral.ai/v1)
+  LLM_MODEL     défaut llama-3.3-70b-versatile          (Mistral : mistral-small-latest)
+(GitHub Models, utilisé au départ, a été retiré par GitHub le 30 juillet 2026.)
 Quota gratuit limité : nombre de résumés borné par run, jeux les plus populaires d'abord,
-arrêt propre dès que l'API refuse (ce qui est fait est gardé).
+arrêt propre si l'API refuse ou échoue plusieurs fois d'affilée (ce qui est fait est gardé).
 
 Entrées : data/ref/steam/<appid>.json.gz, data/ref/steamspy/<appid>.json.gz
 Sortie  : data/ref/game_briefs/<appid>.json.gz
@@ -17,8 +21,8 @@ Sortie  : data/ref/game_briefs/<appid>.json.gz
 
 Un résumé n'est recalculé que si sa source (fiche + tags) a changé.
 
-Usage (en local, il faut un token GitHub avec accès à GitHub Models) :
-  GITHUB_TOKEN=... python src/ml/game_briefs.py --max-new 5
+Usage :
+  LLM_API_KEY=gsk_... python src/ml/game_briefs.py --max-new 5
 """
 
 from __future__ import annotations
@@ -38,8 +42,9 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingestion"))
 from common import REF_DIR, latest_deals, read_json, write_json  # noqa: E402
 
-ENDPOINT = "https://models.github.ai/inference/chat/completions"
-DEFAULT_MODEL = "openai/gpt-4.1-mini"
+DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
+MAX_FAILURES_IN_A_ROW = 5
 MAX_POINTS = 3
 MAX_LEN = 140
 MIN_DESCRIPTION = 40          # en dessous, la fiche est trop pauvre pour un résumé utile
@@ -103,6 +108,18 @@ def build_prompt(src: dict) -> str:
     return "Fiche du jeu :\n" + json.dumps(src, ensure_ascii=False, indent=1)
 
 
+def parse_content(content: str) -> dict:
+    """Le JSON du modèle, même s'il l'a entouré de ```json ... ``` malgré la consigne."""
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+        text = text.rsplit("```", 1)[0]
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"pas de JSON dans la réponse du modèle : {content[:160]!r}")
+    return json.loads(text[start:end + 1])
+
+
 def clean(brief: dict) -> dict:
     """On ne fait pas confiance aveuglément à la sortie du modèle : formes et longueurs contrôlées."""
     points = brief.get("points") or []
@@ -115,7 +132,7 @@ def clean(brief: dict) -> dict:
     }
 
 
-def generate(session: requests.Session, model: str, src: dict) -> dict:
+def generate(session: requests.Session, base_url: str, model: str, src: dict) -> dict:
     body = {
         "model": model,
         "temperature": 0.2,
@@ -123,21 +140,32 @@ def generate(session: requests.Session, model: str, src: dict) -> dict:
         "messages": [{"role": "system", "content": SYSTEM},
                      {"role": "user", "content": build_prompt(src)}],
     }
+    url = base_url.rstrip("/") + "/chat/completions"
     for attempt in range(1, 4):
-        resp = session.post(ENDPOINT, json=body, timeout=60)
+        resp = session.post(url, json=body, timeout=60)
         if resp.status_code == 200:
-            content = resp.json()["choices"][0]["message"]["content"]
-            out = clean(json.loads(content))
+            try:
+                content = resp.json()["choices"][0]["message"]["content"]
+            except (ValueError, KeyError, IndexError, TypeError):
+                raise ValueError(f"réponse inattendue de l'API : HTTP 200, "
+                                 f"{resp.headers.get('Content-Type', 'sans type')}, début : {resp.text[:160]!r}") from None
+            out = clean(parse_content(content))
             if not out["en_bref"]:
-                raise ValueError("réponse vide")
+                raise ValueError("résumé vide")
             return out
-        if resp.status_code in (401, 403, 429):
-            raise QuotaReached(f"HTTP {resp.status_code} : {resp.text[:200]}")
+        if resp.status_code in (401, 403):
+            raise QuotaReached(f"accès refusé, vérifie la clé LLM_API_KEY (HTTP {resp.status_code} : {resp.text[:160]})")
+        if resp.status_code == 429:
+            wait = int(resp.headers.get("retry-after", "0") or 0)
+            if 0 < wait <= 60 and attempt < 3:      # limite par minute : on patiente un peu
+                time.sleep(wait)
+                continue
+            raise QuotaReached(f"quota atteint (HTTP 429 : {resp.text[:160]})")
         if resp.status_code >= 500:
             time.sleep(5 * attempt)
             continue
         raise RuntimeError(f"HTTP {resp.status_code} : {resp.text[:300]}")
-    raise RuntimeError("GitHub Models ne répond pas")
+    raise RuntimeError("l'API ne répond pas")
 
 
 def popular_app_ids() -> list[str]:
@@ -157,11 +185,12 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
 
-    token = os.getenv("GITHUB_TOKEN")
+    token = os.getenv("LLM_API_KEY")
     if not token:
-        log.warning("GITHUB_TOKEN absent : résumés ignorés (ils sont générés dans GitHub Actions).")
+        log.warning("LLM_API_KEY absent : « Le jeu en bref » ignoré (voir le README pour créer une clé Groq gratuite).")
         return 0
-    model = os.getenv("DEALHUNTER_LLM_MODEL") or DEFAULT_MODEL
+    base_url = os.getenv("LLM_BASE_URL") or DEFAULT_BASE_URL
+    model = os.getenv("LLM_MODEL") or DEFAULT_MODEL
 
     index = read_json(OUT_DIR / "_index.json") if (OUT_DIR / "_index.json").exists() else {}   # appid -> hash source
     todo, skipped = [], 0
@@ -173,20 +202,26 @@ def main() -> int:
         h = source_hash(src)
         if index.get(app_id) != h:
             todo.append((app_id, src, h))
-    log.info("%d résumés à jour, %d à (re)générer (max %d ce run, modèle %s), %d jeux sans fiche exploitable",
-             len(index), len(todo), args.max_new, model, skipped)
+    log.info("%d résumés à jour, %d à (re)générer (max %d ce run, modèle %s via %s), %d jeux sans fiche exploitable",
+             len(index), len(todo), args.max_new, model, base_url, skipped)
 
     session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
-    done = failed = 0
+    done = failed = in_a_row = 0
     try:
         for app_id, src, h in todo[:args.max_new]:
             try:
-                brief = generate(session, model, src)
+                brief = generate(session, base_url, model, src)
             except (RuntimeError, ValueError, KeyError) as exc:
                 failed += 1
+                in_a_row += 1
                 log.warning("Résumé impossible pour %s (%s) : on passe au suivant", app_id, exc)
+                if in_a_row >= MAX_FAILURES_IN_A_ROW:
+                    log.error("%d échecs d'affilée : l'API ou sa réponse a changé, arrêt pour ce run", in_a_row)
+                    break
+                time.sleep(args.sleep)
                 continue
+            in_a_row = 0
             write_json(OUT_DIR / f"{app_id}.json.gz",
                        {"model": model, "created": date.today().isoformat(), "source_hash": h, "brief": brief})
             index[app_id] = h
@@ -196,7 +231,7 @@ def main() -> int:
                 log.info("%d résumés", done)
             time.sleep(args.sleep)
     except QuotaReached as exc:
-        log.warning("Quota GitHub Models atteint (%s) — on reprendra au prochain run.", exc)
+        log.warning("Arrêt : %s — on reprendra au prochain run.", exc)
     finally:
         if done:
             write_json(OUT_DIR / "_index.json", index)

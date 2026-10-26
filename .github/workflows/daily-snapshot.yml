@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 75
     permissions:
       contents: write         # committer les nouveaux snapshots
-      models: read            # GitHub Models (« Le jeu en bref »), gratuit avec le GITHUB_TOKEN
     steps:
       - uses: actions/checkout@v5
 
@@ -64,11 +63,12 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/steam_prices.py
 
-      - name: « Le jeu en bref » par IA (GitHub Models)
+      - name: « Le jeu en bref » par IA (Groq, ou autre API compatible OpenAI)
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEALHUNTER_LLM_MODEL: ${{ vars.DEALHUNTER_LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
         run: python src/ml/game_briefs.py --max-new 100
 
       # ---------- transformation ----------
