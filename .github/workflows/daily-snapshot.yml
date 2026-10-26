@@ -49,6 +49,16 @@ jobs:
       - name: Exporter les données du site
         run: python src/export/export_site_data.py
 
+      - name: Cache du modèle d'IA (téléchargé une seule fois)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-multilingual-e5-small-q8
+
+      - name: Index de recherche IA (embeddings des jeux)
+        continue-on-error: true      # sans index, le site marche quand même (recherche classique)
+        run: python src/ml/embed_games.py
+
       - name: Committer le snapshot du jour
         run: |
           git config user.name  "dealhunter-bot"

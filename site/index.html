@@ -68,6 +68,10 @@
   }
   .check { flex-direction: row; align-items: center; gap: 8px; font-size: 15px; color: var(--tag); min-height: 40px; cursor: pointer; }
   .check input { width: 18px; height: 18px; accent-color: var(--sticker); }
+  .ai-toggle { font-weight: 650; }
+  .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: #c9cfdf; }
+  .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--sticker); }
+  .match { color: var(--ink-soft); font-size: 13px; }
   .count { margin-left: auto; font-size: 14px; color: #aeb6cc; min-height: 40px; display: flex; align-items: center; }
 
   /* ---------- grille d'étiquettes ---------- */
@@ -202,6 +206,7 @@
     <label class="field grow">Rechercher un jeu
       <input type="search" id="q" placeholder="Hades, Frosthaven, Elden Ring…" autocomplete="off">
     </label>
+    <label class="field check ai-toggle"><input type="checkbox" id="aiMode"> Recherche IA</label>
     <label class="field">Boutique
       <select id="store"><option value="">Toutes</option></select>
     </label>
@@ -215,6 +220,7 @@
     </label>
     <label class="field">Trier par
       <select id="sort">
+        <option value="relevance" hidden>Pertinence</option>
         <option value="savings">Plus grosse réduction</option>
         <option value="price">Prix le plus bas</option>
         <option value="rating">Mieux notés sur Steam</option>
@@ -228,6 +234,7 @@
     <label class="field check"><input type="checkbox" id="coopOnly"> Jouable en coop</label>
     <label class="field check"><input type="checkbox" id="goodOnly"> Bien notés</label>
     <span class="count" id="count" aria-live="polite"></span>
+    <p class="ai-status" id="aiStatus" aria-live="polite" hidden></p>
   </div>
 </div>
 
@@ -265,8 +272,105 @@
     : safeUrl(g.thumb);
   const fallback = (g) => esc(safeUrl(g.thumb));
 
+  // ---------- recherche IA ----------
+  // Même modèle que celui qui a calculé les vecteurs des jeux dans GitHub Actions.
+  const AI_MODEL = "Xenova/multilingual-e5-small";
+  const AI_LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3";
+  const AI_TOP = 36;          // on montre les jeux les plus proches de la description
+  const ai = { on: false, ready: null, extractor: null, index: null, vectors: null, scales: null, scores: null, run: 0 };
+
+  function aiStatus(html) {
+    $("aiStatus").hidden = !html;
+    $("aiStatus").innerHTML = html || "";
+  }
+
+  function loadAi() {
+    if (ai.ready) return ai.ready;
+    ai.ready = (async () => {
+      aiStatus("Préparation de la recherche IA…");
+      const [index, vec, sc] = await Promise.all([
+        fetch("data/search/index.json").then((r) => { if (!r.ok) throw new Error("index"); return r.json(); }),
+        fetch("data/search/vectors.i8").then((r) => r.arrayBuffer()),
+        fetch("data/search/scales.f32").then((r) => r.arrayBuffer()),
+      ]);
+      ai.index = index;
+      ai.vectors = new Int8Array(vec);
+      ai.scales = new Float32Array(sc);
+
+      const { pipeline, env } = await import(AI_LIB);
+      env.allowLocalModels = false;
+      ai.extractor = await pipeline("feature-extraction", AI_MODEL, {
+        dtype: "q8",
+        progress_callback: (p) => {
+          if (p.status === "progress" && /\.onnx$/.test(p.file || "")) {
+            const pct = Math.round(p.progress || 0);
+            aiStatus(`Téléchargement du modèle d'IA, une seule fois pour ce navigateur <progress max="100" value="${pct}"></progress> ${pct} %`);
+          }
+        },
+      });
+      aiStatus("Recherche IA prête. Décris le jeu que tu cherches, les plus proches s'affichent en premier.");
+    })();
+    ai.ready.catch(() => {
+      ai.ready = null;
+      ai.on = false;
+      $("aiMode").checked = false;
+      setPlaceholder();
+      aiStatus("La recherche IA n'a pas pu se charger. Vérifie ta connexion, puis réactive-la.");
+    });
+    return ai.ready;
+  }
+
+  async function runAiSearch() {
+    const q = $("q").value.trim();
+    const run = ++ai.run;
+    if (!q) { ai.scores = null; applyFilters(); return; }
+    try { await loadAi(); } catch { return; }
+    const out = await ai.extractor(`query: ${q}`, { pooling: "mean", normalize: true });
+    if (run !== ai.run) return;            // une frappe plus récente a pris le relais
+    const qv = out.data, dim = ai.index.dim, V = ai.vectors, S = ai.scales;
+    ai.scores = new Map();
+    ai.index.ids.forEach((id, i) => {
+      let dot = 0;
+      const off = i * dim;
+      for (let j = 0; j < dim; j++) dot += V[off + j] * qv[j];
+      ai.scores.set(id, dot * S[i]);
+    });
+    $("sort").value = "relevance";
+    applyFilters();
+  }
+
+  let aiTimer;
+  function onSearchInput() {
+    if (!ai.on) return applyFilters();
+    clearTimeout(aiTimer);
+    aiTimer = setTimeout(runAiSearch, 450);
+  }
+
+  function setPlaceholder() {
+    $("q").placeholder = ai.on
+      ? "Ex. : un roguelike pas cher pour jouer à deux"
+      : "Hades, Frosthaven, Elden Ring…";
+  }
+
+  function toggleAi() {
+    ai.on = $("aiMode").checked;
+    $("sort").querySelector('[value="relevance"]').hidden = !ai.on;
+    setPlaceholder();
+    if (ai.on) {
+      loadAi().catch(() => {});
+      runAiSearch();
+    } else {
+      ai.scores = null;
+      $("q").value = "";             // une description n'a pas de sens comme recherche par titre
+      if ($("sort").value === "relevance") $("sort").value = "savings";
+      aiStatus("");
+      applyFilters();
+    }
+    $("q").focus();
+  }
+
   function applyFilters() {
-    const q = $("q").value.trim().toLowerCase();
+    const q = ai.on ? "" : $("q").value.trim().toLowerCase();
     const store = $("store").value;
     const minSave = Number($("minSave").value);
     const lowOnly = $("lowOnly").checked;
@@ -276,6 +380,7 @@
 
     filtered = data.games.filter((g) =>
       (!q || g.title.toLowerCase().includes(q)) &&
+      (!ai.scores || ai.scores.has(g.id)) &&
       (!store || g.offers.some((o) => String(o.store_id) === store)) &&
       g.best_savings >= minSave &&
       (!lowOnly || g.is_lowest_ever) &&
@@ -284,8 +389,15 @@
       (!goodOnly || (g.steam_pct ?? 0) >= 80)
     );
 
+    if (ai.scores) {
+      // d'abord les plus proches de la description, puis le tri choisi parmi eux
+      filtered.sort((a, b) => ai.scores.get(b.id) - ai.scores.get(a.id));
+      filtered = filtered.slice(0, AI_TOP);
+    }
+
     const by = $("sort").value;
     const cmp = {
+      relevance: () => 0,
       savings: (a, b) => b.best_savings - a.best_savings,
       price: (a, b) => a.best_price - b.best_price,
       rating: (a, b) => (b.steam_pct ?? -1) - (a.steam_pct ?? -1) || (b.steam_count ?? 0) - (a.steam_count ?? 0),
@@ -296,7 +408,9 @@
     $("grid").innerHTML = "";
     shown = 0;
     renderMore();
-    $("count").textContent = `${filtered.length} jeu${filtered.length > 1 ? "x" : ""}`;
+    $("count").textContent = ai.scores
+      ? `Les ${filtered.length} jeux les plus proches`
+      : `${filtered.length} jeu${filtered.length > 1 ? "x" : ""}`;
     $("empty").hidden = filtered.length > 0;
   }
 
@@ -461,9 +575,10 @@
     $("store").insertAdjacentHTML("beforeend", opts.map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)}</option>`).join(""));
 
     for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly"]) {
-      $(id).addEventListener(id === "q" ? "input" : "change", applyFilters);
+      $(id).addEventListener(id === "q" ? "input" : "change", id === "q" ? onSearchInput : applyFilters);
     }
     $("more").addEventListener("click", renderMore);
+    $("aiMode").addEventListener("change", toggleAi);
     $("grid").addEventListener("click", (e) => {
       const card = e.target.closest(".tag");
       if (card) openSheet(filtered[Number(card.dataset.i)]);
