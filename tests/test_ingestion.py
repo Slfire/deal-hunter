@@ -93,3 +93,36 @@ def test_fill_ref_cache_skips_bad_items_and_stops_when_source_is_broken(tmp_path
     ids = [str(i) for i in range(100, 150)]
     assert common.fill_ref_cache("src2", ids, broken, max_new=50, sleep_s=0, refresh_days=60) == 0
     assert len(calls) == common.MAX_FAILURES_IN_A_ROW
+
+
+def test_steam_reviews_falls_back_to_a_working_request_variant(monkeypatch):
+    import steam_reviews
+
+    class Resp:
+        def __init__(self, ok):
+            self.ok, self.status_code, self.url, self.history = ok, 200, "https://store.steampowered.com/", []
+            self.headers = {"Content-Type": "application/json" if ok else "text/html"}
+            self.text = "{}" if ok else "<!DOCTYPE html>"
+
+        def json(self):
+            if not self.ok:
+                raise ValueError("Expecting value")
+            return {"success": 1, "reviews": [{"review": "Un excellent jeu, très prenant.", "voted_up": True,
+                                               "votes_up": 3, "author": {"playtime_forever": 120}}]}
+
+    seen = []
+
+    def fake_get(session, url, params=None, allow_empty=True):
+        seen.append(params)
+        return Resp(ok=(params == steam_reviews.VARIANTS[2]))   # Steam redirige les variantes 0 et 1
+
+    monkeypatch.setattr(steam_reviews, "get_with_retry", fake_get)
+    fetch = steam_reviews.make_fetch(session=None)
+
+    first = fetch("100")
+    assert first["reviews"][0]["hours"] == 2.0
+    assert seen == steam_reviews.VARIANTS[:3]
+    # jeu suivant : la variante qui marche est tentée en premier, sans repasser par les autres
+    seen.clear()
+    fetch("200")
+    assert seen == [steam_reviews.VARIANTS[2]]

@@ -23,6 +23,16 @@ from common import build_session, fill_ref_cache, get_contact, get_with_retry, l
 
 URL = "https://store.steampowered.com/appreviews/{app_id}"
 KEEP_REVIEWS = 30
+
+# Plusieurs formes de requête documentées pour /appreviews : Steam redirige certaines
+# combinaisons vers sa page d'accueil. On essaie dans l'ordre, la première qui marche est gardée.
+VARIANTS = [
+    {"json": 1, "filter": "all", "language": "all", "review_type": "all", "purchase_type": "all",
+     "num_per_page": 40, "cursor": "*"},
+    {"json": 1, "filter": "recent", "language": "all", "purchase_type": "all", "num_per_page": 20, "cursor": "*"},
+    {"json": 1, "language": "all"},
+    {"json": 1},
+]
 MAX_CHARS = 700
 
 
@@ -52,6 +62,45 @@ def trim(payload: dict) -> dict:
     return {"success": payload.get("success"), "query_summary": payload.get("query_summary"), "reviews": reviews}
 
 
+def make_fetch(session):
+    """Fonction de récupération des avis d'un jeu, qui essaie les variantes de requête dans l'ordre."""
+    def try_variant(app_id: str, params: dict):
+        url = URL.format(app_id=app_id)
+        resp = get_with_retry(session, url, params=params, allow_empty=False)
+        try:
+            payload = resp.json()
+        except ValueError:
+            hops = " -> ".join(f"{h.status_code} {h.headers.get('Location', '')}" for h in resp.history) or "aucune"
+            raise ValueError(f"réponse non JSON : HTTP {resp.status_code}, {resp.headers.get('Content-Type', 'sans type')}, "
+                             f"redirections : {hops}, URL finale {resp.url}, début : {resp.text[:120]!r}") from None
+        if not isinstance(payload, dict) or payload.get("success") != 1:
+            raise ValueError(f"réponse JSON inattendue : {str(payload)[:160]}")
+        return payload
+
+    working = {"variant": None}
+
+    def fetch(app_id: str):
+        # la première variante qui marche est gardée pour la suite du run
+        order = ([working["variant"]] if working["variant"] is not None else []) + \
+                [i for i in range(len(VARIANTS)) if i != working["variant"]]
+        errors = []
+        for i in order:
+            try:
+                payload = try_variant(app_id, VARIANTS[i])
+            except ValueError as exc:
+                errors.append(f"variante {i} : {exc}")
+                if working["variant"] is not None:   # une variante marchait déjà : ce jeu-là est juste bizarre
+                    break
+                continue
+            if working["variant"] != i:
+                log.info("Avis Steam : variante de requête %d retenue (%s)", i, VARIANTS[i])
+                working["variant"] = i
+            return trim(payload)
+        raise ValueError(" | ".join(errors))
+
+    return fetch
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Cache des avis Steam (référence)")
     parser.add_argument("--max-new", type=int, default=150, help="Nb max de jeux à récupérer. Défaut : 150")
@@ -66,21 +115,9 @@ def main() -> int:
         return 1
 
     session = build_session(get_contact() or "anonymous")
+    session.headers["Accept"] = "*/*"     # comme un navigateur : Steam renvoie le JSON grâce à json=1
 
-    def fetch(app_id: str):
-        params = {"json": 1, "filter": "all", "language": "all", "review_type": "all",
-                  "purchase_type": "all", "num_per_page": 40}
-        resp = get_with_retry(session, URL.format(app_id=app_id), params=params, allow_empty=False)
-        ctype = resp.headers.get("Content-Type", "")
-        try:
-            payload = resp.json()
-        except ValueError:
-            # on garde la trace de ce que Steam a vraiment renvoyé, pour comprendre
-            raise ValueError(f"réponse non JSON : HTTP {resp.status_code}, {ctype or 'sans type'}, "
-                             f"URL {resp.url}, début : {resp.text[:160]!r}") from None
-        if not isinstance(payload, dict) or payload.get("success") != 1:
-            raise ValueError(f"réponse JSON inattendue : {str(payload)[:160]}")
-        return trim(payload)
+    fetch = make_fetch(session)
 
     fill_ref_cache("steam_reviews", ids, fetch, args.max_new, args.sleep, args.refresh_days)
     return 0
