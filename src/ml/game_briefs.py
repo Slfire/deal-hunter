@@ -44,6 +44,18 @@ from common import REF_DIR, latest_deals, read_json, write_json  # noqa: E402
 
 DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
+# Les fournisseurs renouvellent leur catalogue : on demande la liste des modèles disponibles
+# et on prend le premier de cette liste de préférence (bons en français, gratuits chez Groq).
+PREFERRED_MODELS = [
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "qwen/qwen3-32b",
+    "openai/gpt-oss-20b",
+    "llama-3.1-8b-instant",
+]
+NOT_CHAT = ("whisper", "tts", "guard", "embed", "playai", "orpheus", "distil")
 MAX_FAILURES_IN_A_ROW = 5
 MAX_POINTS = 3
 MAX_LEN = 140
@@ -132,6 +144,31 @@ def clean(brief: dict) -> dict:
     }
 
 
+def available_models(session: requests.Session, base_url: str) -> list[str]:
+    """Modèles proposés par le fournisseur (GET /models). Liste vide si l'API ne le permet pas."""
+    try:
+        resp = session.get(base_url.rstrip("/") + "/models", timeout=30)
+        if resp.status_code != 200:
+            return []
+        return [m["id"] for m in resp.json().get("data", []) if m.get("id")]
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        return []
+
+
+def pick_model(wanted: str | None, available: list[str]) -> str | None:
+    """Le modèle demandé s'il existe, sinon le premier disponible de la liste de préférence,
+    sinon n'importe quel modèle de chat. None si rien ne convient."""
+    if not available:                      # on ne peut pas vérifier : on fait confiance
+        return wanted or DEFAULT_MODEL
+    if wanted and wanted in available:
+        return wanted
+    for m in PREFERRED_MODELS:
+        if m in available:
+            return m
+    chat = [m for m in available if not any(x in m.lower() for x in NOT_CHAT)]
+    return chat[0] if chat else None
+
+
 def generate(session: requests.Session, base_url: str, model: str, src: dict) -> dict:
     body = {
         "model": model,
@@ -164,6 +201,9 @@ def generate(session: requests.Session, base_url: str, model: str, src: dict) ->
         if resp.status_code >= 500:
             time.sleep(5 * attempt)
             continue
+        if resp.status_code == 400 and "response_format" in body and "json" in resp.text.lower():
+            body.pop("response_format")       # modèle sans « mode JSON » : la consigne + parse_content suffisent
+            continue
         raise RuntimeError(f"HTTP {resp.status_code} : {resp.text[:300]}")
     raise RuntimeError("l'API ne répond pas")
 
@@ -190,7 +230,19 @@ def main() -> int:
         log.warning("LLM_API_KEY absent : « Le jeu en bref » ignoré (voir le README pour créer une clé Groq gratuite).")
         return 0
     base_url = os.getenv("LLM_BASE_URL") or DEFAULT_BASE_URL
-    model = os.getenv("LLM_MODEL") or DEFAULT_MODEL
+    wanted = os.getenv("LLM_MODEL") or None
+
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    models = available_models(session, base_url)
+    model = pick_model(wanted, models)
+    if models:
+        log.info("%d modèles disponibles chez le fournisseur", len(models))
+        if wanted and model != wanted:
+            log.warning("Modèle demandé « %s » indisponible : on utilise « %s »", wanted, model)
+    if model is None:
+        log.error("Aucun modèle de chat disponible chez %s : %s", base_url, ", ".join(models[:20]))
+        return 0
 
     index = read_json(OUT_DIR / "_index.json") if (OUT_DIR / "_index.json").exists() else {}   # appid -> hash source
     todo, skipped = [], 0
@@ -205,8 +257,6 @@ def main() -> int:
     log.info("%d résumés à jour, %d à (re)générer (max %d ce run, modèle %s via %s), %d jeux sans fiche exploitable",
              len(index), len(todo), args.max_new, model, base_url, skipped)
 
-    session = requests.Session()
-    session.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     done = failed = in_a_row = 0
     try:
         for app_id, src, h in todo[:args.max_new]:

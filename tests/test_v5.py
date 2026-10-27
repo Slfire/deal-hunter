@@ -217,3 +217,35 @@ def test_prices_are_shown_in_euros(tmp_path, monkeypatch):
     assert build_pages.usd(10) == "8,00 €"
     payload = notify_discord.build_payload([_game(1, best_price=10.0, normal_price=20.0)], [], date(2026, 10, 27), 0.8)
     assert payload["embeds"][0]["description"].startswith("**8,00 €** au lieu de 16,00 €")
+
+
+def test_pick_model_survives_catalogue_changes():
+    # cas réel du 27/10 : le modèle par défaut a disparu du catalogue Groq
+    available = ["whisper-large-v3", "openai/gpt-oss-120b", "llama-3.1-8b-instant"]
+    assert game_briefs.pick_model(None, available) == "openai/gpt-oss-120b"
+    assert game_briefs.pick_model("llama-3.1-8b-instant", available) == "llama-3.1-8b-instant"   # choix explicite respecté
+    assert game_briefs.pick_model("modele-disparu", available) == "openai/gpt-oss-120b"
+    assert game_briefs.pick_model(None, ["whisper-large-v3", "un-modele-inconnu"]) == "un-modele-inconnu"
+    assert game_briefs.pick_model(None, ["whisper-large-v3"]) is None
+    assert game_briefs.pick_model(None, []) == game_briefs.DEFAULT_MODEL       # liste indisponible : on tente quand même
+
+
+def test_generate_retries_without_json_mode_when_unsupported():
+    calls = []
+
+    class Bad:
+        status_code, headers, text = 400, {}, '{"error":{"message":"response_format json_object is not supported"}}'
+
+    class Good:
+        status_code, headers, text = 200, {}, ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": '```json\n{"en_bref": "Un jeu.", "points": []}\n```'}}]}
+
+    class Session:
+        def post(self, url, json, timeout):
+            calls.append(dict(json))
+            return Bad() if "response_format" in json else Good()
+
+    out = game_briefs.generate(Session(), "https://x", "m", {})
+    assert out["en_bref"] == "Un jeu." and len(calls) == 2 and "response_format" not in calls[1]
