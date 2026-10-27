@@ -10,31 +10,32 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <style>
-  :root { --shelf:#1d2742; --shelf-2:#26324f; --tag:#f6f4ec; --ink:#1a1c24; --soft:#5c6070; --sticker:#ffd23f; --ok:#1f9d5c; --warn:#c77700; --bad:#c0392b; --line:#d9d5c7; }
+  :root { --shelf:#0b0d10; --shelf-2:#2a2f38; --tag:#14171c; --ink:#eef1f4; --soft:#a3acb7; --cyan:#22d3ee; --ok:#22d3ee; --warn:#f5a524; --bad:#f2545b; --line:#2a2f38; --track:#1c2027; --bar:#3a414c; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--shelf); color:var(--tag); font-family:"Archivo",system-ui,sans-serif; line-height:1.45; overflow-x:clip; }
+  body { margin:0; background:var(--shelf); color:var(--ink); font-family:"Archivo",system-ui,sans-serif; line-height:1.45; overflow-x:clip; }
   a { color:inherit; text-underline-offset:3px; }
-  :focus-visible { outline:3px solid #7cc4ff; outline-offset:2px; }
-  .wrap { max-width:1000px; margin:0 auto; padding:0 16px; }
-  header { padding:40px 0 10px; }
-  .back { color:#c9cfdf; font-size:15px; }
+  :focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+  .wrap { max-width:1000px; margin:0 auto; padding-left:16px; padding-right:16px; }
+  header.wrap { padding-top:48px; padding-bottom:10px; }
+  .back { color:var(--soft); font-size:15px; }
+  .back:hover { color:var(--cyan); }
   h1 { margin:18px 0 0; font-size:clamp(38px,7vw,80px); line-height:.9; font-weight:800; font-stretch:125%; letter-spacing:-.02em; }
   .status { display:flex; align-items:center; gap:12px; margin:22px 0 0; font-size:20px; }
-  .dot { width:16px; height:16px; border-radius:50%; flex:none; background:var(--ok); box-shadow:0 0 0 4px rgba(31,157,92,.25); }
-  .dot.warn { background:var(--warn); box-shadow:0 0 0 4px rgba(199,119,0,.25); }
-  .dot.bad { background:var(--bad); box-shadow:0 0 0 4px rgba(192,57,43,.3); }
-  .sub { color:#8f98b3; font-size:14px; margin-top:8px; }
-  main { padding:26px 0 56px; display:grid; gap:22px; }
-  section { background:var(--tag); color:var(--ink); border-radius:6px; padding:22px; }
+  .dot { width:16px; height:16px; border-radius:50%; flex:none; background:var(--ok); box-shadow:0 0 0 4px rgba(34,211,238,.22); }
+  .dot.warn { background:var(--warn); box-shadow:0 0 0 4px rgba(245,165,36,.25); }
+  .dot.bad { background:var(--bad); box-shadow:0 0 0 4px rgba(242,84,91,.28); }
+  .sub { color:#6f7884; font-size:14px; margin-top:8px; }
+  main.wrap { padding-top:26px; padding-bottom:56px; display:grid; gap:22px; }
+  section { background:var(--tag); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:22px; }
   h2 { margin:0; font-size:21px; font-weight:800; font-stretch:110%; }
   .note { margin:6px 0 16px; color:var(--soft); font-size:15px; max-width:66ch; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
 
   .cov { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
   .cov li { display:grid; grid-template-columns:minmax(150px,220px) 1fr 56px; gap:12px; align-items:center; font-size:15px; }
-  .cov .track { height:12px; background:#ebe8dc; border-radius:999px; overflow:hidden; }
+  .cov .track { height:12px; background:var(--track); border-radius:999px; overflow:hidden; }
   .cov .track, .cov .fill { display:block; }
-  .cov .fill { height:100%; background:var(--ink); border-radius:999px; }
+  .cov .fill { height:100%; background:var(--cyan); border-radius:999px; }
   .cov .fill.low { background:var(--warn); }
   .cov .v { text-align:right; font-variant-numeric:tabular-nums; font-weight:650; }
 
@@ -50,7 +51,8 @@
   td.num, th.num { text-align:right; }
   .scroll { overflow-x:auto; }
   .links { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:15px; }
-  footer { padding:0 0 40px; color:#8f98b3; font-size:14px; }
+  footer.wrap { padding-bottom:40px; color:#6f7884; font-size:14px; }
+  .links a:hover { color:var(--cyan); }
   @media (max-width:760px) { .two { grid-template-columns:1fr; } .cov li { grid-template-columns:1fr 52px; } .cov .track { grid-column:1 / -1; grid-row:2; } section { padding:18px 16px; } }
 </style>
 </head>
@@ -115,14 +117,14 @@
     const max = Math.max(...v.map((x) => x.deals)) * 1.1;
     const bw = (W - L - R) / v.length;
     const y = (n) => T + (1 - n / max) * (H - T - B);
-    const bars = v.map((x, i) => `<rect x="${(L + i * bw + 1).toFixed(1)}" y="${y(x.deals).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${(H - B - y(x.deals)).toFixed(1)}" fill="#1a1c24"><title>${esc(dShort.format(new Date(x.day)))} : ${nf.format(x.deals)} deals, ${nf.format(x.games)} jeux</title></rect>`).join("");
+    const bars = v.map((x, i) => `<rect x="${(L + i * bw + 1).toFixed(1)}" y="${y(x.deals).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${(H - B - y(x.deals)).toFixed(1)}" fill="#3a414c"><title>${esc(dShort.format(new Date(x.day)))} : ${nf.format(x.deals)} deals, ${nf.format(x.games)} jeux</title></rect>`).join("");
     return `<svg class="vol" viewBox="0 0 ${W} ${H}" role="img" aria-label="Deals relevés par jour sur ${v.length} jours">
-      <line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#d9d5c7"/>
-      <text x="${L - 6}" y="${y(max / 1.1) + 4}" text-anchor="end" font-size="12" fill="#5c6070">${nf.format(Math.round(max / 1.1))}</text>
-      <text x="${L - 6}" y="${y(0) + 4}" text-anchor="end" font-size="12" fill="#5c6070">0</text>
+      <line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#2a2f38"/>
+      <text x="${L - 6}" y="${y(max / 1.1) + 4}" text-anchor="end" font-size="12" fill="#6f7884">${nf.format(Math.round(max / 1.1))}</text>
+      <text x="${L - 6}" y="${y(0) + 4}" text-anchor="end" font-size="12" fill="#6f7884">0</text>
       ${bars}
-      <text x="${L}" y="${H - 6}" font-size="12" fill="#5c6070">${esc(dShort.format(new Date(v[0].day)))}</text>
-      <text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="12" fill="#5c6070">${esc(dShort.format(new Date(v[v.length - 1].day)))}</text>
+      <text x="${L}" y="${H - 6}" font-size="12" fill="#6f7884">${esc(dShort.format(new Date(v[0].day)))}</text>
+      <text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="12" fill="#6f7884">${esc(dShort.format(new Date(v[v.length - 1].day)))}</text>
     </svg>`;
   }
 

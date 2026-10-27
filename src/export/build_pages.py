@@ -38,8 +38,13 @@ MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "ao�
 log = logging.getLogger("pages")
 
 
+# Les prix CheapShark sont en dollars : convertis en euros au taux BCE du jour (fourni par deals.json)
+USD_TO_EUR = 1 / 1.15
+
+
 def usd(v: float) -> str:
-    return f"{v:,.2f}".replace(",", " ").replace(".", ",") + " $"
+    """Prix boutique (en dollars dans les données) affiché en euros."""
+    return eur(v * USD_TO_EUR)
 
 
 def eur(v: float) -> str:
@@ -92,37 +97,42 @@ def chart_svg(points: list[dict], normal: float) -> str:
     i_low = len(vals) - 1 - vals[::-1].index(min(vals))
     first, last = date.fromisoformat(days[0]), date.fromisoformat(days[-1])
     return f"""<svg class="chart" viewBox="0 0 {W} {H}" role="img" aria-label="Meilleur prix du jour sur {len(days)} jours">
-  <line x1="{L}" x2="{W-R}" y1="{y(normal):.1f}" y2="{y(normal):.1f}" stroke="#5c6070" stroke-dasharray="4 4"/>
-  <text x="{W-R}" y="{y(normal)-6:.1f}" text-anchor="end" font-size="12" fill="#5c6070">Prix normal {escape(usd(normal))}</text>
-  <line x1="{L}" x2="{W-R}" y1="{y(0):.1f}" y2="{y(0):.1f}" stroke="#d9d5c7"/>
-  <path d="{path}" fill="none" stroke="#1a1c24" stroke-width="2.5"/>
-  <circle cx="{x(i_low):.1f}" cy="{y(vals[i_low]):.1f}" r="5" fill="#1f9d5c"/>
-  <text x="{L}" y="{H-8}" font-size="12" fill="#5c6070">{first.day} {MONTHS[first.month-1][:4]}.</text>
-  <text x="{W-R}" y="{H-8}" text-anchor="end" font-size="12" fill="#5c6070">{last.day} {MONTHS[last.month-1][:4]}.</text>
+  <line x1="{L}" x2="{W-R}" y1="{y(normal):.1f}" y2="{y(normal):.1f}" stroke="#6f7884" stroke-dasharray="4 4"/>
+  <text x="{W-R}" y="{y(normal)-6:.1f}" text-anchor="end" font-size="12" fill="#6f7884">Prix normal {escape(usd(normal))}</text>
+  <line x1="{L}" x2="{W-R}" y1="{y(0):.1f}" y2="{y(0):.1f}" stroke="#2a2f38"/>
+  <path d="{path}" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
+  <circle cx="{x(i_low):.1f}" cy="{y(vals[i_low]):.1f}" r="5" fill="#eef1f4"/>
+  <text x="{L}" y="{H-8}" font-size="12" fill="#6f7884">{first.day} {MONTHS[first.month-1][:4]}.</text>
+  <text x="{W-R}" y="{H-8}" text-anchor="end" font-size="12" fill="#6f7884">{last.day} {MONTHS[last.month-1][:4]}.</text>
 </svg>"""
 
 
 STYLE = """
-:root{--shelf:#1d2742;--tag:#f6f4ec;--ink:#1a1c24;--soft:#5c6070;--sticker:#ffd23f;--low:#1f9d5c;--line:#d9d5c7}
-*{box-sizing:border-box}body{margin:0;background:var(--shelf);color:var(--tag);font-family:"Archivo",system-ui,sans-serif;line-height:1.45;overflow-x:clip}
-a{color:inherit;text-underline-offset:3px}:focus-visible{outline:3px solid #7cc4ff;outline-offset:2px}
-.wrap{max-width:820px;margin:0 auto;padding:0 16px}header{padding:22px 0}
-.brand{font-weight:800;font-stretch:125%;font-size:22px;text-decoration:none}
-article{background:var(--tag);color:var(--ink);border-radius:8px;overflow:hidden;margin-bottom:28px;position:relative}
-.cover{display:block;width:100%;aspect-ratio:460/215;object-fit:cover;background:#c9c5b6}
-.sticker{position:absolute;top:12px;right:12px;width:74px;height:74px;border-radius:50%;display:grid;place-items:center;
-background:var(--sticker);color:var(--ink);font-weight:800;font-stretch:75%;font-size:24px;transform:rotate(-12deg);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.body{padding:20px 22px 26px}h1{margin:0 0 6px;font-size:30px;line-height:1.1;font-stretch:110%;font-weight:800}
-h2{margin:28px 0 10px;font-size:18px;font-weight:750}.meta{color:var(--soft);font-size:14px}
-.price{font-size:44px;font-weight:800;font-stretch:62%;line-height:1;margin:16px 0 0}.was{color:var(--soft);text-decoration:line-through;font-size:16px;margin-left:8px}
-.verdict{margin:14px 0 0;padding:12px 14px;border-radius:4px;background:#ebe8dc}.chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:12px 0 0}
-.chips li{font-size:13px;padding:3px 9px;border-radius:999px;background:#e4e0d2}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-td,th{padding:9px 8px 9px 0;border-top:1px solid var(--line);text-align:left}th{font-size:13px;color:var(--soft);font-weight:600;border-top:0}.num{text-align:right}
-.chart{width:100%;height:auto}.note{color:var(--soft);font-size:14px}.similar{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
-.similar a{display:block;padding:10px 12px;border-radius:4px;background:#ebe8dc;text-decoration:none}.similar span{display:block;color:var(--soft);font-size:13px}
-.cta{display:inline-block;margin-top:18px;padding:11px 16px;border-radius:4px;background:var(--ink);color:var(--tag);font-weight:700;text-decoration:none}
-footer{padding:0 0 36px;color:#8f98b3;font-size:14px}
-@media(max-width:600px){.body{padding:16px}.price{font-size:36px}h1{font-size:25px}}
+:root{--bg:#0b0d10;--surface:#14171c;--surface-2:#1c2027;--border:#2a2f38;--text:#eef1f4;--soft:#a3acb7;--mute:#6f7884;--cyan:#22d3ee;--on-cyan:#04161a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"Archivo",system-ui,sans-serif;line-height:1.45;overflow-x:clip}
+a{color:inherit;text-underline-offset:3px}:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.wrap{max-width:820px;margin:0 auto;padding-left:16px;padding-right:16px}header.wrap{padding-top:22px;padding-bottom:22px}
+.brand{font-weight:800;font-stretch:125%;font-size:22px;text-decoration:none}.brand span{color:var(--cyan)}
+article{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:28px;position:relative}
+.cover{display:block;width:100%;aspect-ratio:460/215;object-fit:cover;background:var(--surface-2)}
+.sticker{position:absolute;top:14px;right:14px;padding:6px 13px;border-radius:999px;background:var(--cyan);color:var(--on-cyan);
+font-weight:800;font-stretch:85%;font-size:22px;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.body{padding:22px 24px 28px}h1{margin:0 0 6px;font-size:30px;line-height:1.1;font-stretch:110%;font-weight:800}
+h2{margin:30px 0 10px;font-size:18px;font-weight:750}.meta{color:var(--soft);font-size:14px;line-height:1.6}
+.price{font-size:44px;font-weight:800;font-stretch:75%;line-height:1;margin:16px 0 0}.was{color:var(--mute);text-decoration:line-through;font-size:16px;margin-left:8px}
+.verdict{margin:16px 0 0;padding:12px 14px;border-radius:8px;background:var(--surface-2);border-left:3px solid var(--cyan)}.verdict strong{color:var(--cyan)}
+.chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:12px 0 0}
+.chips li{font-size:13px;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--soft)}
+p,li{color:var(--soft)}strong{color:var(--text)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:9px 8px 9px 0;border-top:1px solid var(--border);text-align:left}th{font-size:13px;color:var(--mute);font-weight:600;border-top:0}.num{text-align:right}
+td a{color:var(--cyan);font-weight:700;text-decoration:none}td a:hover{text-decoration:underline}
+.chart{width:100%;height:auto}.note{color:var(--mute);font-size:14px}.similar{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.similar a{display:block;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);text-decoration:none;color:var(--text)}.similar a:hover{border-color:var(--cyan)}
+.similar span{display:block;color:var(--soft);font-size:13px}
+.cta{display:inline-block;margin-top:20px;padding:11px 16px;border-radius:8px;background:var(--cyan);color:var(--on-cyan);font-weight:700;text-decoration:none}
+footer.wrap{padding-bottom:36px;color:var(--mute);font-size:14px}
+@media(max-width:600px){.body{padding:16px}.price{font-size:36px}h1{font-size:25px}.sticker{font-size:18px;padding:4px 10px}}
 """
 
 
@@ -158,8 +168,8 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
 
     ld = {"@context": "https://schema.org", "@type": "VideoGame", "name": g["title"], "url": url,
           "gamePlatform": "PC", "image": image or None, "description": g.get("desc") or None,
-          "offers": {"@type": "AggregateOffer", "priceCurrency": "USD", "lowPrice": g["best_price"],
-                     "highPrice": max(o["price"] for o in g["offers"]), "offerCount": len(g["offers"])}}
+          "offers": {"@type": "AggregateOffer", "priceCurrency": "EUR", "lowPrice": round(g["best_price"] * USD_TO_EUR, 2),
+                     "highPrice": round(max(o["price"] for o in g["offers"]) * USD_TO_EUR, 2), "offerCount": len(g["offers"])}}
     ld = {k: v for k, v in ld.items() if v is not None}
 
     eur_html = ""
@@ -196,7 +206,7 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
 <script type="application/ld+json">{json.dumps(ld, ensure_ascii=False).replace("<", "\\u003c")}</script>
 </head>
 <body>
-<header class="wrap"><a class="brand" href="../">Deal Hunter</a></header>
+<header class="wrap"><a class="brand" href="../">Deal <span>Hunter</span></a></header>
 <main class="wrap">
 <article>
   {f'<img class="cover" src="{escape(image)}" alt="">' if image else ''}
@@ -219,7 +229,7 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
   </div>
 </article>
 </main>
-<footer class="wrap">Prix relevés le {escape(snapshot)}, en dollars US tels qu'affichés par les boutiques. Données : CheapShark, Steam, SteamSpy.</footer>
+<footer class="wrap">Prix relevés le {escape(snapshot)}, convertis du dollar en euros au taux BCE du jour ; le prix « Steam France » est le prix officiel. Données : CheapShark, Steam, SteamSpy.</footer>
 </body>
 </html>
 """
@@ -233,6 +243,8 @@ def main() -> int:
         return 1
 
     data = json.loads(deals_path.read_text(encoding="utf-8"))
+    global USD_TO_EUR
+    USD_TO_EUR = (data.get("fx") or {}).get("usd_to_eur") or USD_TO_EUR
     games = data["games"]
     by_id = {g["id"]: g for g in games}
     sim_path = DATA_DIR / "search" / "similar.json"

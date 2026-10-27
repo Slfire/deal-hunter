@@ -94,3 +94,14 @@ def test_fill_ref_cache_skips_bad_items_and_stops_when_source_is_broken(tmp_path
     assert common.fill_ref_cache("src2", ids, broken, max_new=50, sleep_s=0, refresh_days=60) == 0
     assert len(calls) == common.MAX_FAILURES_IN_A_ROW
 
+
+
+def test_parse_ecb_rate():
+    import fx_rate
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <Cube><Cube time="2026-10-27"><Cube currency="USD" rate="1.1612"/><Cube currency="JPY" rate="171.2"/></Cube></Cube>
+</gesmes:Envelope>"""
+    assert fx_rate.parse_ecb(xml) == ("2026-10-27", 1.1612)
+    with pytest.raises(ValueError):
+        fx_rate.parse_ecb(xml.replace('currency="USD" rate="1.1612"', 'currency="GBP" rate="0.87"'))

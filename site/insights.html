@@ -11,41 +11,45 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --shelf: #1d2742;
-    --shelf-2: #26324f;
-    --tag: #f6f4ec;
-    --ink: #1a1c24;
-    --ink-soft: #5c6070;
-    --sticker: #ffd23f;
-    --low: #1f9d5c;
-    --line: #d9d5c7;
-    --focus: #7cc4ff;
+    /* charte : noir, gris, cyan */
+    --shelf: #0b0d10;        /* fond */
+    --shelf-2: #2a2f38;      /* bordures */
+    --tag: #14171c;          /* cartes */
+    --ink: #eef1f4;          /* texte */
+    --ink-soft: #a3acb7;
+    --sticker: #22d3ee;      /* accent cyan */
+    --on-cyan: #04161a;
+    --bar: #3a414c;
+    --track: #1c2027;
+    --line: #2a2f38;
+    --focus: #22d3ee;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--shelf); color: var(--tag);
+    margin: 0; background: var(--shelf); color: var(--ink);
     font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.45;
     overflow-x: clip;
   }
   a { color: inherit; text-underline-offset: 3px; }
-  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
 
-  header { padding: 40px 0 8px; }
-  .back { color: #c9cfdf; font-size: 15px; }
+  header.wrap { padding-top: 48px; padding-bottom: 8px; }
+  .back { color: var(--ink-soft); font-size: 15px; }
+  .back:hover { color: var(--sticker); }
   h1 {
     margin: 18px 0 0; font-size: clamp(40px, 7.5vw, 88px); line-height: .9;
     font-weight: 800; font-stretch: 125%; letter-spacing: -.02em;
   }
-  .lede { margin: 22px 0 0; max-width: 60ch; font-size: 20px; color: #dde2ee; }
+  .lede { margin: 22px 0 0; max-width: 60ch; font-size: 20px; color: #c4cbd4; }
   .lede strong {
-    font-weight: 800; font-stretch: 75%; font-size: 1.15em; color: var(--ink);
-    background: var(--sticker); padding: 0 6px; border-radius: 3px;
+    font-weight: 800; font-stretch: 75%; font-size: 1.15em; color: var(--sticker);
+    padding: 0 2px;
   }
-  .stamp { margin-top: 12px; color: #8f98b3; font-size: 14px; }
+  .stamp { margin-top: 12px; color: #6f7884; font-size: 14px; }
 
-  main { padding: 28px 0 56px; display: grid; gap: 22px; }
-  section { background: var(--tag); color: var(--ink); border-radius: 6px; padding: 22px 22px 24px; }
+  main.wrap { padding-top: 28px; padding-bottom: 56px; display: grid; gap: 22px; }
+  section { background: var(--tag); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 22px 22px 24px; }
   h2 { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 800; font-stretch: 110%; }
   .note { margin: 6px 0 18px; color: var(--ink-soft); font-size: 15px; max-width: 64ch; }
 
@@ -53,26 +57,26 @@
   .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .bar { display: grid; grid-template-columns: minmax(110px, 170px) 1fr; gap: 12px; align-items: center; }
   .bar .name { font-weight: 650; font-size: 15px; overflow-wrap: anywhere; }
-  .bar .track { position: relative; height: 30px; background: #ebe8dc; border-radius: 3px; }
-  .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 3px; min-width: 3px; }
+  .bar .track { position: relative; height: 30px; background: var(--track); border-radius: 6px; }
+  .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar); border-radius: 6px; min-width: 3px; }
   .bar:first-child .fill { background: var(--sticker); }
   .bar .val {
     position: absolute; top: 50%; transform: translateY(-50%); left: calc(var(--w) + 8px);
     font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink);
   }
-  .bar .val.inside { left: auto; right: calc(100% - var(--w) + 8px); color: var(--tag); }
-  .bar:first-child .val.inside { color: var(--ink); }
+  .bar .val.inside { left: auto; right: calc(100% - var(--w) + 8px); color: var(--ink); }
+  .bar:first-child .val.inside { color: var(--on-cyan); font-weight: 700; }
 
   /* histogramme des réductions */
   .histo { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; align-items: end; height: 220px; margin-top: 8px; }
   .col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; text-align: center; }
-  .col .stack { background: var(--ink); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .col .stack { background: var(--bar); border-radius: 6px 6px 0 0; min-height: 2px; }
   .col.top .stack { background: var(--sticker); }
   .col .n { font-size: 13px; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
   .axis { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); text-align: center; }
 
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-  footer { padding: 0 0 40px; color: #8f98b3; font-size: 14px; }
+  footer.wrap { padding-bottom: 40px; color: #6f7884; font-size: 14px; }
   .foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; }
   .empty { color: var(--ink-soft); }
 
@@ -89,7 +93,7 @@
 
 <header class="wrap">
   <a class="back" href="./">Retour aux promos</a>
-  <h1>Les chiffres du marché</h1>
+  <h1>Les chiffres <span style="color:var(--sticker)">du marché</span></h1>
   <p class="lede" id="lede">Chargement des chiffres…</p>
   <p class="stamp" id="stamp"></p>
 </header>

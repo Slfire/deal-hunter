@@ -10,216 +10,223 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <style>
+  /* Charte : noir, gris, cyan — propre, sombre, moderne */
   :root {
-    --shelf: #1d2742;        /* fond : le rayon */
-    --shelf-2: #26324f;
-    --tag: #f6f4ec;          /* l'étiquette */
-    --ink: #1a1c24;
-    --ink-soft: #5c6070;
-    --sticker: #ffd23f;      /* pastille promo */
-    --low: #1f9d5c;          /* plus bas prix vu */
-    --line: #d9d5c7;
-    --focus: #7cc4ff;
-    --radius-tag: 6px;
+    --bg: #0b0d10;           /* fond de page */
+    --surface: #14171c;      /* cartes, fiche */
+    --surface-2: #1c2027;    /* champs, encadrés */
+    --border: #2a2f38;
+    --text: #eef1f4;
+    --text-soft: #a3acb7;
+    --text-mute: #6f7884;
+    --cyan: #22d3ee;         /* accent unique */
+    --cyan-strong: #06b6d4;
+    --on-cyan: #04161a;      /* texte posé sur du cyan */
+    --radius: 10px;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
-    background: var(--shelf);
-    color: var(--tag);
+    background: var(--bg);
+    color: var(--text);
     font-family: "Archivo", system-ui, sans-serif;
     font-size: 16px;
     line-height: 1.45;
     overflow-x: clip;
   }
   a { color: inherit; }
-  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
 
   /* ---------- en-tête ---------- */
-  header { padding: 48px 0 28px; }
+  header.wrap { padding-top: 56px; padding-bottom: 28px; }
   h1 {
     margin: 0;
     font-size: clamp(44px, 9vw, 112px);
     line-height: .88;
     font-weight: 800;
     font-stretch: 125%;
-    letter-spacing: -.02em;
+    letter-spacing: -.025em;
   }
-  .lede { margin: 18px 0 0; max-width: 56ch; color: #c9cfdf; font-size: 18px; }
-  .stamp { margin-top: 10px; color: #8f98b3; font-size: 14px; }
+  h1 .accent { color: var(--cyan); }
+  .lede { margin: 20px 0 0; max-width: 56ch; color: var(--text-soft); font-size: 18px; }
+  .stamp { margin-top: 10px; color: var(--text-mute); font-size: 14px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 16px; font-size: 15px; }
+  .nav a { color: var(--text-soft); text-decoration: none; border-bottom: 1px solid var(--border); padding-bottom: 1px; }
+  .nav a:hover { color: var(--cyan); border-color: var(--cyan); }
+  .sale-banner, .wish-alert {
+    margin: 16px 0 0; padding: 11px 14px; border-radius: 8px; max-width: 70ch; font-size: 15px;
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--cyan); color: var(--text);
+  }
+  .sale-banner strong, .wish-alert strong { color: var(--cyan); }
+  .wish-alert { font-weight: 600; }
+  .wish-alert button { font: inherit; font-weight: 700; background: none; border: 0; padding: 0; color: var(--cyan); text-decoration: underline; cursor: pointer; }
 
   /* ---------- filtres ---------- */
   .filters {
     position: sticky; top: 0; z-index: 5;
-    background: var(--shelf);
-    border-bottom: 1px solid var(--shelf-2);
+    background: rgba(11, 13, 16, .92);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     padding: 12px 0;
   }
   .filters .wrap { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
-  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #aeb6cc; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-mute); }
   .field.grow { flex: 1 1 220px; }
   input[type=search], select {
     font: inherit; font-size: 15px;
-    color: var(--ink); background: var(--tag);
-    border: 0; border-radius: 4px;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 8px;
     padding: 9px 10px; min-height: 40px;
   }
-  .check { flex-direction: row; align-items: center; gap: 8px; font-size: 15px; color: var(--tag); min-height: 40px; cursor: pointer; }
-  .check input { width: 18px; height: 18px; accent-color: var(--sticker); }
-  .nav { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 14px; font-size: 15px; }
-  .nav a { color: #c9cfdf; text-underline-offset: 3px; }
-  .nav a:hover { color: var(--tag); }
-  .wish-alert { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: var(--sticker); color: var(--ink); font-weight: 650; max-width: 64ch; }
-  .wish-alert button { font: inherit; font-weight: 750; background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; }
-  .understood { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; vertical-align: middle; }
-  .understood span { font-size: 13px; padding: 2px 8px; border-radius: 999px; background: var(--shelf-2); color: var(--tag); }
-  .eur { font-weight: 650; color: var(--ink); }
-  .wished { color: #b8860b; font-weight: 700; }
-  .follow { font: inherit; font-weight: 700; font-size: 15px; margin-top: 14px; padding: 9px 14px; border-radius: 4px; cursor: pointer;
-            border: 0; background: var(--ink); color: var(--tag); }
-  .follow[aria-pressed="true"] { background: var(--sticker); color: var(--ink); }
-  .sale-banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 4px; background: var(--shelf-2); color: var(--tag); max-width: 64ch; font-size: 15px; }
-  .sale-banner strong { color: var(--sticker); }
-  .foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; }
-  .brief { margin: 8px 0 0; padding-left: 18px; font-size: 15px; }
-  .ai-note { font-size: 13px; color: var(--ink-soft); margin: 8px 0 0; }
-  .similar { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-  .similar button { width: 100%; text-align: left; font: inherit; font-size: 15px; font-weight: 650; padding: 9px 12px; border: 0; border-radius: 4px; background: #ebe8dc; color: var(--ink); cursor: pointer; }
-  .similar button span { display: block; font-weight: 400; font-size: 13px; color: var(--ink-soft); }
-  .share { display: inline-block; margin: 14px 0 0 12px; font-size: 15px; }
-  @media (max-width: 560px) { .share { margin-left: 0; display: block; } }
+  input[type=search]::placeholder { color: var(--text-mute); }
+  input[type=search]:focus, select:focus { border-color: var(--cyan); outline: none; }
+  .check { flex-direction: row; align-items: center; gap: 8px; font-size: 15px; color: var(--text); min-height: 40px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--cyan); }
   .ai-toggle { font-weight: 650; }
-  .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: #c9cfdf; }
-  .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--sticker); }
-  .match { color: var(--ink-soft); font-size: 13px; }
-  .count { margin-left: auto; font-size: 14px; color: #aeb6cc; min-height: 40px; display: flex; align-items: center; }
+  .ai-status { flex-basis: 100%; margin: 0; font-size: 14px; color: var(--text-soft); }
+  .ai-status progress { width: 160px; vertical-align: middle; margin-left: 8px; accent-color: var(--cyan); }
+  .understood { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; vertical-align: middle; }
+  .understood span { font-size: 13px; padding: 2px 9px; border-radius: 999px; background: rgba(34, 211, 238, .12); color: var(--cyan); }
+  .count { margin-left: auto; font-size: 14px; color: var(--text-mute); min-height: 40px; display: flex; align-items: center; }
 
-  /* ---------- grille d'étiquettes ---------- */
-  main { padding: 24px 0 64px; }
+  /* ---------- grille de jeux ---------- */
+  main.wrap { padding-top: 28px; padding-bottom: 64px; }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 22px 18px;
+    gap: 18px;
   }
   .tag {
     position: relative;
     display: flex; flex-direction: column;
-    background: var(--tag); color: var(--ink);
-    border-radius: var(--radius-tag);
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
     text-align: left; font: inherit;
-    border: 0; padding: 0; cursor: pointer;
-    overflow: visible;
+    padding: 0; cursor: pointer; overflow: hidden;
   }
-  /* le trou de l'étiquette */
-  .tag::before {
-    content: ""; position: absolute; top: 9px; left: 50%;
-    width: 12px; height: 12px; margin-left: -6px;
-    border-radius: 50%; background: var(--shelf);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,.35);
-    z-index: 2;
-  }
+  .tag:hover { border-color: var(--cyan); }
   .tag .cover {
     display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover;
-    border-radius: var(--radius-tag) var(--radius-tag) 0 0;
-    background: #c9c5b6;
+    background: var(--surface-2);
   }
   .tag .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .tag .title {
-    margin: 0; font-size: 16px; line-height: 1.2; font-weight: 650;
+    margin: 0; font-size: 16px; line-height: 1.25; font-weight: 650;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: auto; }
   .price {
-    font-size: 40px; line-height: 1; font-weight: 800; font-stretch: 62%;
+    font-size: 38px; line-height: 1; font-weight: 800; font-stretch: 75%;
     letter-spacing: -.01em; font-variant-numeric: tabular-nums;
   }
-  .was { color: var(--ink-soft); text-decoration: line-through; font-size: 15px; }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--ink-soft); }
-  .low-badge { color: var(--low); font-weight: 700; }
+  .was { color: var(--text-mute); text-decoration: line-through; font-size: 15px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--text-soft); }
+  .low-badge { color: var(--cyan); font-weight: 700; }
+  .eur { font-weight: 600; color: var(--text); }
+  .wished { color: var(--cyan); font-weight: 700; }
 
-  /* la pastille promo : le seul élément « bruyant » de la page */
+  /* la réduction : posée dans l'image, plus rien ne dépasse de la carte */
   .sticker {
-    position: absolute; top: -10px; right: -8px; z-index: 3;
-    width: 66px; height: 66px; border-radius: 50%;
-    display: grid; place-items: center;
-    background: var(--sticker); color: var(--ink);
-    font-weight: 800; font-stretch: 75%; font-size: 21px; letter-spacing: -.02em;
-    transform: rotate(-12deg);
-    box-shadow: 0 2px 0 rgba(0,0,0,.25);
+    position: absolute; top: 10px; right: 10px; z-index: 3;
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--cyan); color: var(--on-cyan);
+    font-weight: 800; font-stretch: 85%; font-size: 17px; letter-spacing: -.01em;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
   }
-  .sticker.big { top: 12px; right: 12px; width: 74px; height: 74px; font-size: 24px; }
+  .sticker.big { top: 14px; right: 14px; font-size: 22px; padding: 6px 13px; }
 
   .more { display: block; margin: 32px auto 0; }
   .btn {
     font: inherit; font-weight: 700; font-size: 15px;
-    background: var(--sticker); color: var(--ink);
-    border: 0; border-radius: 4px; padding: 11px 18px; cursor: pointer;
+    background: var(--cyan); color: var(--on-cyan);
+    border: 0; border-radius: 8px; padding: 11px 18px; cursor: pointer;
   }
-  .btn.ghost { background: transparent; color: var(--tag); box-shadow: inset 0 0 0 1.5px #56607e; }
-
-  .empty { padding: 48px 0; color: #c9cfdf; font-size: 18px; }
+  .btn.ghost { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+  .btn.ghost:hover { box-shadow: inset 0 0 0 1px var(--cyan); color: var(--cyan); }
+  .empty { padding: 48px 0; color: var(--text-soft); font-size: 18px; }
 
   /* ---------- fiche jeu ---------- */
   dialog {
     width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
-    padding: 0; border: 0; border-radius: 8px;
-    background: var(--tag); color: var(--ink);
+    padding: 0; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); color: var(--text);
   }
-  dialog::backdrop { background: rgba(10, 14, 28, .72); }
+  dialog::backdrop { background: rgba(0, 0, 0, .75); }
   .sheet-head { position: relative; }
-  .sheet-head img { display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 8px 8px 0 0; background: #c9c5b6; }
+  .sheet-head img { display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover; background: var(--surface-2); }
   .close {
-    position: absolute; top: 10px; left: 10px;
+    position: absolute; top: 12px; left: 12px;
     font: inherit; font-size: 15px; font-weight: 700;
-    background: var(--tag); color: var(--ink); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer;
+    background: rgba(11, 13, 16, .85); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer;
   }
-  .sheet-body { padding: 18px 22px 24px; }
+  .close:hover { border-color: var(--cyan); color: var(--cyan); }
+  .sheet-body { padding: 20px 24px 26px; }
   .sheet-body h2 { margin: 0 0 6px; font-size: 26px; line-height: 1.1; font-stretch: 110%; font-weight: 800; }
-  .sheet-body h3 { margin: 26px 0 10px; font-size: 17px; font-weight: 750; }
-  .desc { margin: 12px 0 0; font-size: 16px; max-width: 64ch; }
+  .sheet-body h3 { margin: 28px 0 10px; font-size: 17px; font-weight: 750; }
+  .sheet-body .meta { line-height: 1.6; }
+  .desc { margin: 12px 0 0; font-size: 16px; max-width: 64ch; color: var(--text-soft); }
+  .desc strong { color: var(--text); }
   .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; }
-  .chips li { font-size: 13px; padding: 3px 9px; border-radius: 999px; background: #e4e0d2; }
-  .verdict { margin: 14px 0 0; padding: 12px 14px; border-radius: 4px; background: #ebe8dc; font-size: 15px; }
-  .verdict strong { font-weight: 750; }
+  .chips li { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-soft); }
+  .verdict { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--surface-2); border-left: 3px solid var(--cyan); font-size: 15px; }
+  .verdict strong { font-weight: 750; color: var(--cyan); }
+  .follow { font: inherit; font-weight: 700; font-size: 15px; margin-top: 16px; padding: 9px 14px; border-radius: 8px; cursor: pointer;
+            border: 0; background: var(--cyan); color: var(--on-cyan); }
+  .follow[aria-pressed="true"] { background: transparent; color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan); }
+  .share { display: inline-block; margin: 16px 0 0 14px; font-size: 15px; color: var(--text-soft); }
+  .share:hover { color: var(--cyan); }
+  .brief { margin: 8px 0 0; padding-left: 18px; font-size: 15px; color: var(--text-soft); }
+  .ai-note { font-size: 13px; color: var(--text-mute); margin: 8px 0 0; }
+  .similar { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .similar button { width: 100%; text-align: left; font: inherit; font-size: 15px; font-weight: 650; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+  .similar button:hover { border-color: var(--cyan); }
+  .similar button span { display: block; font-weight: 400; font-size: 13px; color: var(--text-soft); }
 
   table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-weight: 600; font-size: 13px; color: var(--ink-soft); padding: 0 8px 6px 0; }
-  td { padding: 9px 8px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+  th { text-align: left; font-weight: 600; font-size: 13px; color: var(--text-mute); padding: 0 8px 6px 0; }
+  td { padding: 9px 8px 9px 0; border-top: 1px solid var(--border); vertical-align: middle; }
   td.num, th.num { text-align: right; }
   .store { display: flex; align-items: center; gap: 8px; }
   .store img { width: 16px; height: 16px; }
-  td a { font-weight: 700; }
+  td a { font-weight: 700; color: var(--cyan); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
   tr.best td { font-weight: 700; }
 
   .chart { width: 100%; height: auto; display: block; }
-  .chart-note { font-size: 14px; color: var(--ink-soft); margin: 6px 0 0; }
+  .chart-note { font-size: 14px; color: var(--text-mute); margin: 6px 0 0; }
 
-  footer { padding: 28px 0 40px; color: #8f98b3; font-size: 14px; border-top: 1px solid var(--shelf-2); }
+  footer.wrap { padding-top: 28px; padding-bottom: 40px; color: var(--text-mute); font-size: 14px; border-top: 1px solid var(--border); }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; }
+  footer a:hover { color: var(--cyan); }
 
   @media (max-width: 560px) {
-    header { padding-top: 32px; }
+    header.wrap { padding-top: 36px; }
     .count { margin-left: 0; width: 100%; min-height: 0; }
     .filters { position: static; }
-    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .tag .body { padding: 10px 10px 12px; }
-    .price { font-size: 30px; }
-    .sticker { width: 50px; height: 50px; font-size: 16px; right: -4px; }
+    .price { font-size: 28px; }
+    .sticker { top: 6px; right: 6px; font-size: 14px; padding: 3px 7px; }
     .sheet-body { padding: 16px; }
+    .share { margin-left: 0; display: block; }
   }
   @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
   @media (prefers-reduced-motion: no-preference) {
-    .tag { transition: transform .12s ease; }
-    .tag:hover { transform: translateY(-3px); }
+    .tag { transition: transform .12s ease, border-color .12s ease; }
+    .tag:hover { transform: translateY(-2px); }
   }
 </style>
 </head>
 <body>
 
 <header class="wrap">
-  <h1>Deal Hunter</h1>
+  <h1>Deal <span class="accent">Hunter</span></h1>
   <p class="lede">Les promos sur les jeux PC, comparées entre une trentaine de boutiques. Chaque jour, on note les prix pour te dire si une promo est vraiment la meilleure.</p>
   <p class="stamp" id="stamp">Chargement des prix…</p>
   <nav class="nav" aria-label="Pages">
@@ -250,7 +257,7 @@
     <label class="field">Trier par
       <select id="sort">
         <option value="relevance" hidden>Pertinence</option>
-        <option value="savings">Plus grosse réduction</option>
+        <option value="savings" selected>Plus grosse réduction</option>
         <option value="price">Prix le plus bas</option>
         <option value="rating">Mieux notés sur Steam</option>
         <option value="release">Plus récents</option>
@@ -275,7 +282,7 @@
 </main>
 
 <footer class="wrap">
-  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix comparés sont en dollars US, tels qu'affichés par les boutiques ; le prix en euros est celui de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>, résumés « Le jeu en bref » générés par IA à partir des fiches Steam.
+  Prix fournis par <a href="https://www.cheapshark.com" target="_blank" rel="noopener">CheapShark</a>, relevés une fois par jour. Les prix des boutiques sont convertis du dollar en euros au taux de référence de la BCE du jour ; le prix « sur Steam » est le prix officiel de Steam France. Tags joueurs fournis par <a href="https://steamspy.com" target="_blank" rel="noopener">SteamSpy</a>, résumés « Le jeu en bref » générés par IA à partir des fiches Steam.
   <p class="foot-links"><a href="sante.html">Santé du pipeline</a> <a href="docs/">Documentation des données</a> <a href="https://github.com/Slfire/deal-hunter">Code source</a></p>
 </footer>
 
@@ -284,7 +291,11 @@
 <script>
 (() => {
   const PAGE = 60;
-  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD" });
+  // CheapShark donne les prix en dollars : tout est converti en euros au taux BCE du jour (data.fx)
+  const fmtEurRaw = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+  let RATE = 1 / 1.15;                       // remplacé au chargement par le taux du jour
+  const toEur = (usd) => usd * RATE;
+  const fmt = { format: (usd) => fmtEurRaw.format(toEur(usd)) };
   const fmtEur = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const fmtMonth = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
@@ -317,9 +328,9 @@
   const B = "(?:^|[\\s,.;!?'’])";            // début de mot, y compris devant « à »
   const RULES = [
     { re: new RegExp(B + "(?:moins de|sous|max(?:imum)?|à moins de|pour moins de)\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:€|\\$|euros?|dollars?|balles)?", "i"),
-      apply: (c, m) => { c.maxPrice = parseFloat(m[1].replace(",", ".")); }, label: (m) => `moins de ${m[1]} $` },
+      apply: (c, m) => { c.maxPrice = parseFloat(m[1].replace(",", ".")); }, label: (m) => `moins de ${m[1]} €` },
     { re: new RegExp(B + "(?:pas cher|pas chère|petit prix|bon marché|à petit budget|budget)", "i"),
-      apply: (c) => { c.maxPrice = c.maxPrice ?? 10; }, label: () => "moins de 10 $" },
+      apply: (c) => { c.maxPrice = c.maxPrice ?? 10; }, label: () => "moins de 10 €" },
     { re: new RegExp(B + "(?:à|a) (?:deux|2|plusieurs|trois|3|quatre|4)|entre (?:potes|amis|copains)|avec (?:des |mes )?(?:potes|amis|copains)|en co-?op\\w*|coop\\w*", "i"),
       apply: (c) => { c.coop = true; }, label: () => "jouable en coop" },
     { re: new RegExp(B + "(?:très |tres )?bien not[ée]e?s?|culte|chef[- ]d['’](?:œ|oe)uvre|incontournable|excellent", "i"),
@@ -496,7 +507,7 @@
     const c = (ai.on && ai.constraints) || {};
 
     filtered = data.games.filter((g) =>
-      (c.maxPrice == null || g.best_price <= c.maxPrice) &&
+      (c.maxPrice == null || toEur(g.best_price) <= c.maxPrice) &&
       (!c.coop || g.coop) &&
       (c.minRating == null || (g.steam_pct ?? 0) >= c.minRating) &&
       (c.minSave == null || g.best_savings >= c.minSave) &&
@@ -603,6 +614,12 @@
     $("showWish").onclick = () => { $("wishOnly").checked = true; applyFilters(); $("grid").scrollIntoView({ behavior: "smooth" }); };
   }
 
+  function fxNote() {
+    const fx = data.fx || {};
+    const when = fx.date ? ` du ${fmtDate.format(parseDay(fx.date))}` : "";
+    return `Prix des boutiques convertis du dollar en euros au taux BCE${when} (1 € = ${(fx.usd_per_eur || 1.15).toFixed(2).replace(".", ",")} $). Le montant payé peut varier légèrement selon la boutique.`;
+  }
+
   // ---------- soldes Steam (calendrier officiel publié par Valve) ----------
   const DAY = 864e5;
   const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -667,7 +684,8 @@
   function chartSvg(points, normal) {
     // prix minimum du jour, toutes boutiques confondues
     const byDay = new Map();
-    for (const p of points) byDay.set(p.d, Math.min(byDay.get(p.d) ?? Infinity, p.p));
+    normal = toEur(normal);
+    for (const p of points) byDay.set(p.d, Math.min(byDay.get(p.d) ?? Infinity, toEur(p.p)));
     const days = [...byDay.keys()].sort();
     if (days.length < 2) return null;
 
@@ -690,13 +708,13 @@
     return `
       <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du meilleur prix sur ${days.length} jours">
         ${ticks.map((t) => `
-          <line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#d9d5c7"/>
-          <text x="${L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="12" fill="#5c6070">${t} $</text>`).join("")}
-        <line x1="${L}" x2="${W - R}" y1="${y(normal)}" y2="${y(normal)}" stroke="#5c6070" stroke-dasharray="4 4"/>
-        <text x="${W - R}" y="${y(normal) - 6}" text-anchor="end" font-size="12" fill="#5c6070">Prix normal</text>
-        <path d="${d}" fill="none" stroke="#1a1c24" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle cx="${x(iLow)}" cy="${y(lowest)}" r="5" fill="#1f9d5c"/>
-        ${xLabels.map((i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === days.length - 1 ? "end" : "middle"}" font-size="12" fill="#5c6070">${fmtShort.format(new Date(days[i]))}</text>`).join("")}
+          <line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#2a2f38"/>
+          <text x="${L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="12" fill="#6f7884">${t} €</text>`).join("")}
+        <line x1="${L}" x2="${W - R}" y1="${y(normal)}" y2="${y(normal)}" stroke="#6f7884" stroke-dasharray="4 4"/>
+        <text x="${W - R}" y="${y(normal) - 6}" text-anchor="end" font-size="12" fill="#6f7884">Prix normal</text>
+        <path d="${d}" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="${x(iLow)}" cy="${y(lowest)}" r="5" fill="#eef1f4"/>
+        ${xLabels.map((i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === days.length - 1 ? "end" : "middle"}" font-size="12" fill="#6f7884">${fmtShort.format(new Date(days[i]))}</text>`).join("")}
       </svg>`;
   }
 
@@ -748,6 +766,7 @@
           <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Réduction</th><th class="num"><span hidden>Lien</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
+        <p class="ai-note">${esc(fxNote())}</p>
         <h3>Historique du meilleur prix</h3>
         <div id="chart"><p class="chart-note">Chargement de l'historique…</p></div>
         <div id="similar"></div>
@@ -793,7 +812,8 @@
       return;
     }
 
-    $("stamp").textContent = `${data.games.length} jeux en promo, prix relevés le ${fmtDate.format(new Date(data.snapshot_ts))}.`;
+    if (data.fx && data.fx.usd_to_eur) RATE = data.fx.usd_to_eur;
+    $("stamp").textContent = `${data.games.length} jeux en promo, prix relevés le ${fmtDate.format(new Date(data.snapshot_ts))}, en euros.`;
 
     const used = new Set(data.games.flatMap((g) => g.offers.map((o) => String(o.store_id))));
     const opts = Object.entries(data.stores)

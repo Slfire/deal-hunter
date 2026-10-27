@@ -37,6 +37,8 @@ SITE_URL = os.getenv("SITE_URL", "https://slfire.github.io/deal-hunter/").rstrip
 
 FEED_SIZE = 30
 SALES_CALENDAR = PROJECT_ROOT / "data" / "ref" / "steam_sales_calendar.json"
+FX_RATE = PROJECT_ROOT / "data" / "ref" / "fx_rate.json"
+FALLBACK_USD_PER_EUR = 1.15     # utilisé seulement si le taux BCE n'a jamais pu être récupéré
 
 log = logging.getLogger("export")
 
@@ -156,6 +158,16 @@ INSIGHTS_SQL = {
 }
 
 
+def usd_to_eur_rate() -> dict:
+    """Taux pour convertir les prix CheapShark (dollars) en euros, d'après le dernier taux BCE connu."""
+    if FX_RATE.exists():
+        fx = json.loads(FX_RATE.read_text(encoding="utf-8"))
+        return {"usd_to_eur": round(1 / fx["usd_per_eur"], 6), "usd_per_eur": fx["usd_per_eur"],
+                "date": fx["date"], "source": fx.get("source", "BCE")}
+    return {"usd_to_eur": round(1 / FALLBACK_USD_PER_EUR, 6), "usd_per_eur": FALLBACK_USD_PER_EUR,
+            "date": None, "source": "taux approximatif"}
+
+
 def upcoming_sales(today: date | None = None) -> list[dict]:
     """Soldes Steam en cours ou à venir, d'après le calendrier officiel tenu dans data/ref."""
     if not SALES_CALENDAR.exists():
@@ -165,7 +177,7 @@ def upcoming_sales(today: date | None = None) -> list[dict]:
     return [s for s in sales if date.fromisoformat(s["end"]) >= today]
 
 
-def build_feed(games: list[dict], snapshot_ts) -> str:
+def build_feed(games: list[dict], snapshot_ts, usd_to_eur: float = 1 / FALLBACK_USD_PER_EUR) -> str:
     """Flux RSS : les plus bas historiques du jour, réduction ≥ 50 %, les jeux les plus populaires d'abord."""
     picks = [g for g in games if g["is_lowest_ever"] and g["full_history"] and (g["best_savings"] or 0) >= 50]
     picks.sort(key=lambda g: -(g["steam_count"] or 0))
@@ -178,7 +190,7 @@ def build_feed(games: list[dict], snapshot_ts) -> str:
 
     items = []
     for g in picks:
-        price = f"{g['best_price']:.2f} $".replace(".", ",")
+        price = f"{g['best_price'] * usd_to_eur:.2f} €".replace(".", ",")
         eur = f" (Steam : {g['eur']:.2f} €)".replace(".", ",") if g.get("eur") is not None else ""
         desc = f"{price}{eur}, −{round(g['best_savings'])} %. Plus bas prix de son histoire."
         if g.get("tags"):
@@ -232,8 +244,10 @@ def main() -> int:
         shutil.rmtree(OUT_DIR)
 
     generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    fx = usd_to_eur_rate()
     dump(OUT_DIR / "deals.json", {
         "generated_at": generated,
+        "fx": fx,
         "snapshot_ts": to_jsonable(snapshot_ts),
         "stores": stores,
         "genres": sorted({x for g in games for x in (g["genres"] or [])}, key=str.casefold),
@@ -251,7 +265,7 @@ def main() -> int:
     insights["snapshot_ts"] = to_jsonable(snapshot_ts)
     dump(OUT_DIR / "insights.json", insights)
 
-    feed = build_feed(games, snapshot_ts)
+    feed = build_feed(games, snapshot_ts, fx["usd_to_eur"])
     (SITE_DIR / "feed.xml").write_text(feed, encoding="utf-8")
 
     log.info("Export : %d jeux, %d offres, %d historiques, %d articles RSS -> site/",

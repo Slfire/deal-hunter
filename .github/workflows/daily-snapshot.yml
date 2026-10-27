@@ -39,6 +39,10 @@ jobs:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/snapshot.py --max-pages 0
 
+      - name: Taux dollar -> euro du jour (BCE)
+        continue-on-error: true      # sans réponse de la BCE, on garde le dernier taux connu
+        run: python src/ingestion/fx_rate.py
+
       - name: Plus bas prix historique (CheapShark /games)
         continue-on-error: true      # un raté ici ne doit pas bloquer le site
         env:

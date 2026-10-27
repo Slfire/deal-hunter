@@ -163,7 +163,7 @@ def test_game_page_has_seo_and_share_metadata_and_escapes():
     c.feed(html)
     assert c.metas["og:image"] == "https://example.com/h.jpg"
     assert "Tu peux attendre" in c.metas["og:description"] and "novembre 2021" in html
-    assert "4,99 $" in c.title
+    assert "€" in c.title and "$" not in c.title          # tout est affiché en euros
     assert "Le jeu en bref" in html and "Ce n'est pas un avis" in html
 
 
@@ -204,3 +204,16 @@ def test_upcoming_sales_keeps_current_and_future(tmp_path, monkeypatch):
     monkeypatch.setattr(export_site_data, "SALES_CALENDAR", cal)
     assert [s["name"] for s in export_site_data.upcoming_sales(date(2026, 10, 26))] == ["Hiver"]
     assert [s["name"] for s in export_site_data.upcoming_sales(date(2026, 12, 20))] == ["Hiver"]
+
+
+def test_prices_are_shown_in_euros(tmp_path, monkeypatch):
+    fx = tmp_path / "fx.json"
+    fx.write_text(json.dumps({"date": "2026-10-27", "usd_per_eur": 1.25, "source": "BCE"}))
+    monkeypatch.setattr(export_site_data, "FX_RATE", fx)
+    rate = export_site_data.usd_to_eur_rate()
+    assert rate["usd_to_eur"] == 0.8 and rate["date"] == "2026-10-27"
+    # pages jeux et Discord : 10 $ -> 8,00 €
+    monkeypatch.setattr(build_pages, "USD_TO_EUR", 0.8)
+    assert build_pages.usd(10) == "8,00 €"
+    payload = notify_discord.build_payload([_game(1, best_price=10.0, normal_price=20.0)], [], date(2026, 10, 27), 0.8)
+    assert payload["embeds"][0]["description"].startswith("**8,00 €** au lieu de 16,00 €")

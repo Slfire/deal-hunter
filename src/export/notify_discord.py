@@ -56,10 +56,10 @@ def fr_price(value: float, symbol: str) -> str:
     return f"{value:.2f}".replace(".", ",") + f" {symbol}"
 
 
-def build_payload(picks: list[dict], sales: list[dict], today: date) -> dict:
+def build_payload(picks: list[dict], sales: list[dict], today: date, usd_to_eur: float = 1 / 1.15) -> dict:
     embeds = []
     for g in picks:
-        lines = [f"**{fr_price(g['best_price'], '$')}** au lieu de {fr_price(g['normal_price'], '$')} "
+        lines = [f"**{fr_price(g['best_price'] * usd_to_eur, '€')}** au lieu de {fr_price(g['normal_price'] * usd_to_eur, '€')} "
                  f"(−{round(g['best_savings'])} %)"]
         if g.get("eur") is not None:
             lines.append(f"Sur Steam France : {fr_price(g['eur'], '€')}")
@@ -103,7 +103,7 @@ def main() -> int:
         log.info("Aucun nouveau plus bas historique à annoncer aujourd'hui.")
         return 0
 
-    payload = build_payload(picks, data.get("steam_sales", []), today)
+    payload = build_payload(picks, data.get("steam_sales", []), today, (data.get("fx") or {}).get("usd_to_eur") or 1 / 1.15)
     if args.dry_run:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
