@@ -1,8 +1,12 @@
 name: Snapshot quotidien
 
 on:
+  # GitHub peut retarder ou sauter une tâche planifiée quand ses serveurs sont chargés :
+  # trois créneaux par jour, le premier qui passe fait le relevé, les suivants s'arrêtent tout de suite.
   schedule:
-    - cron: "17 5 * * *"     # tous les jours à 05:17 UTC (06:17 / 07:17 heure de Paris)
+    - cron: "17 5 * * *"     # 05:17 UTC (06:17 en hiver, 07:17 en été, heure de Paris)
+    - cron: "47 9 * * *"     # rattrapage
+    - cron: "23 15 * * *"    # rattrapage
   workflow_dispatch:          # bouton "Run workflow" pour lancer à la main
 
 concurrency:
@@ -14,7 +18,31 @@ env:
   SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/deal-hunter/', github.repository_owner) }}
 
 jobs:
+  # Faut-il faire le relevé ? Toujours pour un lancement manuel ; pour un créneau planifié,
+  # seulement si aucun relevé n'a encore été fait aujourd'hui (date UTC).
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github     # on n'a besoin que de la liste des dossiers, pas des données
+      - id: decide
+        run: |
+          today=$(date -u +%Y-%m-%d)
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "Lancement manuel : relevé."; echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git ls-tree -d --name-only HEAD "data/raw/deals/$today" | grep -q .; then
+            echo "Relevé du $today déjà fait : rien à faire sur ce créneau."; echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pas encore de relevé le $today : on y va."; echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   snapshot:
+    needs: check
+    if: needs.check.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
