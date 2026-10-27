@@ -5,7 +5,6 @@ Produit :
   site/data/deals.json             les jeux du dernier snapshot, offres regroupées par jeu
   site/data/history/<game_id>.json historique des prix d'un jeu (toutes boutiques)
   site/data/insights.json          statistiques pour la page Insights
-  site/feed.xml                    flux RSS des meilleurs « plus bas historiques » du jour
 
 Usage :
   python src/export/export_site_data.py
@@ -23,9 +22,7 @@ import sys
 import unicodedata
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from email.utils import format_datetime
 from pathlib import Path
-from xml.sax.saxutils import escape
 
 import duckdb
 
@@ -35,7 +32,6 @@ SITE_DIR = PROJECT_ROOT / "site"
 OUT_DIR = SITE_DIR / "data"
 SITE_URL = os.getenv("SITE_URL", "https://slfire.github.io/deal-hunter/").rstrip("/") + "/"
 
-FEED_SIZE = 30
 SALES_CALENDAR = PROJECT_ROOT / "data" / "ref" / "steam_sales_calendar.json"
 FX_RATE = PROJECT_ROOT / "data" / "ref" / "fx_rate.json"
 FALLBACK_USD_PER_EUR = 1.15     # utilisé seulement si le taux BCE n'a jamais pu être récupéré
@@ -130,28 +126,34 @@ ORDER BY game_id, snapshot_date, store_id
 
 INSIGHTS_SQL = {
     "stores": "SELECT * FROM marts.insights_store_stats WHERE games_on_sale >= 5 ORDER BY games_on_sale DESC",
-    # répartition des réductions (meilleure offre par jeu), par tranches de 10 %
+    # répartition des jeux selon leur meilleure réduction du jour, par tranches de 10 points (0-9 %, 10-19 %…, 90-100 %)
     "discounts": """
         WITH best AS (SELECT game_id, max(savings_pct) AS s FROM marts.current_deals GROUP BY game_id)
         SELECT least(floor(s / 10) * 10, 90)::INT AS bucket, count(*) AS games
         FROM best GROUP BY bucket ORDER BY bucket
     """,
-    # tags les plus fréquents parmi les jeux en promo
+    # styles (tags joueurs) les plus représentés parmi les jeux en promo qui ont des tags
     "tags": """
-        SELECT tag, count(*) AS games
-        FROM (SELECT unnest(tags) AS tag FROM marts.dim_games
-              WHERE game_id IN (SELECT game_id FROM marts.current_deals))
-        GROUP BY tag ORDER BY games DESC, tag LIMIT 15
+        WITH promo AS (
+            SELECT g.game_id, g.tags FROM marts.dim_games g
+            WHERE g.game_id IN (SELECT game_id FROM marts.current_deals) AND len(g.tags) > 0
+        )
+        SELECT tag, count(*) AS games, (SELECT count(*) FROM promo) AS tagged_games
+        FROM (SELECT unnest(tags) AS tag FROM promo)
+        GROUP BY tag ORDER BY games DESC, tag LIMIT 12
     """,
     "summary": """
         WITH best AS (
-            SELECT game_id, max(savings_pct) AS s, bool_or(is_lowest_ever) AS low, count(*) AS n
+            SELECT game_id, max(savings_pct) AS s, min(sale_price) AS p, bool_or(is_lowest_ever) AS low, count(*) AS n
             FROM marts.current_deals GROUP BY game_id
         )
-        SELECT count(*) AS games,
-               round(avg(s), 1) AS avg_best_savings,
-               count(*) FILTER (WHERE low) AS lowest_ever_games,
-               count(*) FILTER (WHERE n > 1) AS multi_store_games,
+        SELECT count(*)                                AS games,
+               round(median(s), 1)                     AS median_best_savings,
+               round(avg(s), 1)                        AS avg_best_savings,
+               round(median(p), 2)                     AS median_best_price_usd,
+               count(*) FILTER (WHERE low)             AS lowest_ever_games,
+               count(*) FILTER (WHERE n > 1)           AS multi_store_games,
+               count(*) FILTER (WHERE s >= 75)         AS games_75_plus,
                (SELECT count(DISTINCT snapshot_date) FROM marts.fct_price_history) AS days_tracked
         FROM best
     """,
@@ -175,46 +177,6 @@ def upcoming_sales(today: date | None = None) -> list[dict]:
     today = today or date.today()
     sales = json.loads(SALES_CALENDAR.read_text(encoding="utf-8")).get("sales", [])
     return [s for s in sales if date.fromisoformat(s["end"]) >= today]
-
-
-def build_feed(games: list[dict], snapshot_ts, usd_to_eur: float = 1 / FALLBACK_USD_PER_EUR) -> str:
-    """Flux RSS : les plus bas historiques du jour, réduction ≥ 50 %, les jeux les plus populaires d'abord."""
-    picks = [g for g in games if g["is_lowest_ever"] and g["full_history"] and (g["best_savings"] or 0) >= 50]
-    picks.sort(key=lambda g: -(g["steam_count"] or 0))
-    picks = picks[:FEED_SIZE]
-
-    snap = snapshot_ts if isinstance(snapshot_ts, datetime) else datetime.now(timezone.utc)
-    if snap.tzinfo is None:
-        snap = snap.replace(tzinfo=timezone.utc)
-    day = snap.date().isoformat()
-
-    items = []
-    for g in picks:
-        price = f"{g['best_price'] * usd_to_eur:.2f} €".replace(".", ",")
-        eur = f" (Steam : {g['eur']:.2f} €)".replace(".", ",") if g.get("eur") is not None else ""
-        desc = f"{price}{eur}, −{round(g['best_savings'])} %. Plus bas prix de son histoire."
-        if g.get("tags"):
-            desc += " " + ", ".join(g["tags"][:4]) + "."
-        items.append(f"""    <item>
-      <title>{escape(g['title'])} à {escape(price)} (−{round(g['best_savings'])} %)</title>
-      <link>{escape(SITE_URL)}jeu/{g['id']}-{slugify(g['title'])}.html</link>
-      <guid isPermaLink="false">dealhunter-{g['id']}-{day}</guid>
-      <pubDate>{format_datetime(snap)}</pubDate>
-      <description>{escape(desc)}</description>
-    </item>""")
-
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    <title>Deal Hunter — plus bas historiques du jour</title>
-    <link>{escape(SITE_URL)}</link>
-    <description>Les jeux PC qui atteignent aujourd'hui le prix le plus bas de leur histoire.</description>
-    <language>fr-fr</language>
-    <lastBuildDate>{format_datetime(snap)}</lastBuildDate>
-{chr(10).join(items)}
-  </channel>
-</rss>
-"""
 
 
 def main() -> int:
@@ -263,13 +225,12 @@ def main() -> int:
 
     insights["summary"] = insights["summary"][0] if insights["summary"] else {}
     insights["snapshot_ts"] = to_jsonable(snapshot_ts)
+    insights["fx"] = fx
     dump(OUT_DIR / "insights.json", insights)
 
-    feed = build_feed(games, snapshot_ts, fx["usd_to_eur"])
-    (SITE_DIR / "feed.xml").write_text(feed, encoding="utf-8")
 
-    log.info("Export : %d jeux, %d offres, %d historiques, %d articles RSS -> site/",
-             len(games), sum(len(g["offers"]) for g in games), len(by_game), feed.count("<item>"))
+    log.info("Export : %d jeux, %d offres, %d historiques -> site/data/",
+             len(games), sum(len(g["offers"]) for g in games), len(by_game))
     return 0
 
 

@@ -2,7 +2,7 @@
 
 Les promos sur les jeux PC, comparées entre une trentaine de boutiques, avec l'historique des prix pour savoir si une promo vaut vraiment le coup, une recherche en langage naturel (« un roguelike pas cher pour jouer à deux ») et un résumé IA « Le jeu en bref » pour chaque jeu.
 
-**Site : https://slfire.github.io/deal-hunter/** · [Les chiffres du marché](https://slfire.github.io/deal-hunter/insights.html) · [Santé du pipeline](https://slfire.github.io/deal-hunter/sante.html) · [Documentation des données](https://slfire.github.io/deal-hunter/docs/) · [Flux RSS](https://slfire.github.io/deal-hunter/feed.xml)
+**Site : https://slfire.github.io/deal-hunter/** · [Les chiffres du marché](https://slfire.github.io/deal-hunter/insights.html) · [Santé du pipeline](https://slfire.github.io/deal-hunter/sante.html) · [Documentation des données](https://slfire.github.io/deal-hunter/docs/)
 
 Le projet est un pipeline de données complet qui tourne seul chaque matin, sans serveur et sans coût : ingestion de cinq sources, warehouse DuckDB modélisé et testé avec dbt, embeddings et LLM pour la partie IA, lake Parquet, observabilité, et publication d'un site statique.
 
@@ -23,7 +23,7 @@ flowchart LR
         LLM[LLM Groq<br/>« Le jeu en bref »]
         DBT[DuckDB + dbt<br/>raw → staging → marts<br/>+ tests de qualité]
         EMB[Embeddings e5-small<br/>recherche + similaires]
-        PUB[Export JSON, pages jeux,<br/>RSS, sitemap, santé, doc dbt]
+        PUB[Export JSON, pages jeux,<br/>sitemap, santé, doc dbt]
         LAKE[(Lake Parquet<br/>Cloudflare R2)]
         DIS[Bot Discord]
     end
@@ -46,7 +46,7 @@ flowchart LR
 | Modélisation | Chargement idempotent (`raw._loaded_files`), puis dbt : `staging` (typage, faux zéros → NULL, dédoublonnage) et `marts` | `src/transform/`, `dbt/` |
 | Qualité | 31 tests dbt (unicité, non-nullité, relations, grain de l'historique, cohérence des prix) + 22 tests pytest en CI | `dbt/tests/`, `tests/` |
 | IA | « Le jeu en bref » par LLM, recherche sémantique, jeux similaires | `src/ml/` |
-| Publication | JSON du site, une page HTML par jeu (SEO, aperçus de partage), sitemap, flux RSS, bot Discord | `src/export/`, `site/` |
+| Publication | JSON du site, une page HTML par jeu (SEO, aperçus de partage), sitemap, bot Discord | `src/export/`, `site/` |
 | Lake | Tables en Parquet partitionné, poussées sur Cloudflare R2 si configuré | `src/lake/` |
 | Observabilité | Fraîcheur, volumes par jour, couverture des enrichissements, tests dbt, historique des runs | `src/export/build_health.py`, `site/sante.html` |
 

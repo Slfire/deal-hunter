@@ -80,7 +80,7 @@ jobs:
         run: python src/transform/build_warehouse.py
 
       # ---------- publication ----------
-      - name: Exporter les données du site (+ insights, flux RSS)
+      - name: Exporter les données du site (+ chiffres du marché)
         run: python src/export/export_site_data.py
 
       - name: Cache du modèle d'IA (téléchargé une seule fois)

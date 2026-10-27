@@ -7,7 +7,7 @@ data/lake/
 site/data/
 site/jeu/
 site/docs/
-site/feed.xml
+
 site/sitemap.xml
 site/robots.txt
 dbt/target/

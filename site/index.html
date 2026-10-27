@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal Hunter</title>
 <meta name="description" content="Les promos sur les jeux PC, comparées entre boutiques, avec l'historique des prix pour savoir si c'est vraiment le bon moment d'acheter.">
-<link rel="alternate" type="application/rss+xml" title="Deal Hunter — plus bas historiques du jour" href="feed.xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -231,7 +230,6 @@
   <p class="stamp" id="stamp">Chargement des prix…</p>
   <nav class="nav" aria-label="Pages">
     <a href="insights.html">Les chiffres du marché</a>
-    <a href="feed.xml">Flux RSS des plus bas historiques</a>
   </nav>
   <p class="sale-banner" id="saleBanner" hidden></p>
   <p class="wish-alert" id="wishAlert" hidden></p>
@@ -837,7 +835,7 @@
       applyFilters();                     // met à jour la mention « Dans ta liste » sur les cartes
     });
 
-    // lien direct vers une fiche : …/#jeu-12345 (utilisé par le flux RSS)
+    // lien direct vers une fiche : …/#jeu-12345 (pages jeux, Discord)
     const openFromHash = () => {
       const m = location.hash.match(/^#jeu-(\d+)$/);
       const g = m && data.games.find((x) => x.id === Number(m[1]));

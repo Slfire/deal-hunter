@@ -4,7 +4,7 @@ Deal Hunter — bot Discord : poste chaque matin les nouveaux plus bas historiqu
 Fonctionne avec un simple webhook Discord (Paramètres du salon > Intégrations > Webhooks),
 à mettre dans le secret DISCORD_WEBHOOK_URL du repo. Sans ce secret, le script ne fait rien.
 
-Sélection : même règle que le flux RSS (plus bas de toute l'histoire, réduction ≥ 50 %),
+Sélection : plus bas de toute l'histoire, réduction ≥ 50 %,
 les jeux les plus populaires d'abord. Un jeu déjà annoncé dans les 14 derniers jours
 n'est pas reposté (mémoire dans data/ref/discord_posted.json).
 

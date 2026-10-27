@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Les chiffres du marché — Deal Hunter</title>
 <meta name="description" content="Quelle boutique est la moins chère, comment se répartissent les réductions, quels jeux sont les plus soldés : les promos sur les jeux PC en chiffres, mis à jour chaque jour.">
-<link rel="alternate" type="application/rss+xml" title="Deal Hunter — plus bas historiques du jour" href="feed.xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -71,9 +70,39 @@
   .histo { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; align-items: end; height: 220px; margin-top: 8px; }
   .col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; text-align: center; }
   .col .stack { background: var(--bar); border-radius: 6px 6px 0 0; min-height: 2px; }
-  .col.top .stack { background: var(--sticker); }
   .col .n { font-size: 13px; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
   .axis { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); text-align: center; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi { background: var(--tag); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .kpi .k-label { font-size: 14px; color: var(--ink-soft); }
+  .kpi .k-value { display: block; margin-top: 6px; font-size: 36px; line-height: 1; font-weight: 800; font-stretch: 85%; font-variant-numeric: tabular-nums; }
+  .kpi .k-value.accent { color: var(--sticker); }
+  .kpi .k-sub { display: block; margin-top: 8px; font-size: 13px; color: #6f7884; line-height: 1.4; }
+  .read { margin: 0 0 16px; padding: 10px 14px; border-radius: 8px; background: #1c2027; border-left: 3px solid var(--sticker); font-size: 15px; max-width: 72ch; }
+  .read strong { color: var(--sticker); }
+
+  .scroll { overflow-x: auto; }
+  main.wrap > *, section, .two > * { min-width: 0; }   /* le tableau défile dans sa carte au lieu d'élargir la page */
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; min-width: 560px; }
+  .cmp th { text-align: left; font-size: 13px; font-weight: 600; color: var(--ink-soft); padding: 0 10px 8px 0; }
+  .cmp td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+  .cmp .num { text-align: right; white-space: nowrap; }
+  .cmp .store { font-weight: 650; }
+  .cmp .barcell { width: 44%; }
+  .mini { display: flex; align-items: center; gap: 10px; }
+  .mini .track { flex: 1; height: 10px; background: var(--track); border-radius: 999px; overflow: hidden; }
+  .mini .fill { display: block; height: 100%; background: var(--bar); border-radius: 999px; }
+  .cmp tr.best .mini .fill { background: var(--sticker); }
+  .mini b { min-width: 42px; text-align: right; }
+
+  .chart-wrap { display: grid; grid-template-columns: 22px 1fr; gap: 6px; }
+  .yaxis { position: relative; }
+  .yaxis span { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-90deg); white-space: nowrap; font-size: 12px; color: #6f7884; }
+  .axis-title { margin: 6px 0 0; text-align: center; font-size: 12px; color: #6f7884; }
+  .col.median .stack { background: var(--sticker); }
+  .col .n { color: var(--ink); }
+  .col .p { display: block; font-size: 11px; color: #6f7884; }
 
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
   footer.wrap { padding-bottom: 40px; color: #6f7884; font-size: 14px; }
@@ -82,6 +111,8 @@
 
   @media (max-width: 760px) {
     .two { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .kpi .k-value { font-size: 30px; }
     .bar { grid-template-columns: 1fr; gap: 4px; }
     section { padding: 18px 16px 20px; }
     .histo { height: 170px; gap: 3px; }
@@ -99,28 +130,38 @@
 </header>
 
 <main class="wrap">
+  <div class="kpis" id="kpis" aria-label="Chiffres clés du jour"></div>
+
   <section>
-    <h2>Quelle boutique est la moins chère le plus souvent ?</h2>
-    <p class="note">Parmi les jeux vendus par au moins deux boutiques, la part des fois où chaque boutique propose le meilleur prix. Boutiques comparées sur au moins 10 jeux.</p>
-    <ol class="bars" id="cheapest"></ol>
+    <h2>Où acheter au meilleur prix&nbsp;?</h2>
+    <p class="note">On compare uniquement les jeux vendus par au moins deux boutiques. Pour chaque boutique : sur combien de ces jeux elle a le prix le plus bas (une égalité compte comme « la moins chère »), et de combien elle est au-dessus du meilleur prix en moyenne. Boutiques comparées sur au moins 10 jeux.</p>
+    <p class="read" id="cheapestRead"></p>
+    <div class="scroll"><table class="cmp" id="cheapest"></table></div>
   </section>
 
   <section>
-    <h2>Comment se répartissent les réductions</h2>
-    <p class="note">Nombre de jeux selon leur meilleure réduction du jour, par tranches de 10 %.</p>
-    <div class="histo" id="histo" role="img"></div>
-    <div class="axis" id="axis" aria-hidden="true"></div>
+    <h2>Quelle est la taille des réductions&nbsp;?</h2>
+    <p class="note">Chaque jeu est compté une fois, avec sa meilleure réduction du jour toutes boutiques confondues, puis rangé par tranche de 10 points.</p>
+    <p class="read" id="histoRead"></p>
+    <div class="chart-wrap">
+      <div class="yaxis" aria-hidden="true"><span>Nombre de jeux</span></div>
+      <div>
+        <div class="histo" id="histo" role="img"></div>
+        <div class="axis" id="axis" aria-hidden="true"></div>
+        <p class="axis-title" aria-hidden="true">Meilleure réduction du jour</p>
+      </div>
+    </div>
   </section>
 
   <div class="two">
     <section>
-      <h2>Réduction moyenne par boutique</h2>
-      <p class="note">Sur tous les jeux en promo dans la boutique aujourd'hui.</p>
+      <h2>Réduction typique par boutique</h2>
+      <p class="note">Réduction médiane : la moitié des promos de la boutique sont plus fortes, l'autre moitié plus faibles. Plus fiable qu'une moyenne, qui est tirée par quelques promos à −90 %.</p>
       <ol class="bars" id="savings"></ol>
     </section>
     <section>
-      <h2>Les styles de jeux les plus soldés</h2>
-      <p class="note">Tags posés par les joueurs sur Steam, parmi les jeux en promo.</p>
+      <h2>Les styles de jeux les plus présents en promo</h2>
+      <p class="note" id="tagsNote">Tags posés par les joueurs sur Steam. Un jeu a plusieurs tags : les pourcentages ne s'additionnent pas.</p>
       <ol class="bars" id="tags"></ol>
     </section>
   </div>
@@ -136,9 +177,48 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const nf = new Intl.NumberFormat("fr-FR");
+  const pct = (v, d = 0) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: d }).format(v)} %`;
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const eurF = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
-  // une liste de barres horizontales ; la valeur passe dans la barre quand celle-ci est assez longue
+  // Tags Steam (en anglais) -> français. Les tags absents de la liste restent tels quels.
+  const TAGS_FR = {
+    "Action": "Action", "Adventure": "Aventure", "Indie": "Indépendant", "RPG": "RPG", "Strategy": "Stratégie",
+    "Simulation": "Simulation", "Casual": "Occasionnel", "Singleplayer": "Solo", "Multiplayer": "Multijoueur",
+    "Co-op": "Coopération", "Online Co-Op": "Coop en ligne", "Local Co-Op": "Coop locale", "PvP": "JcJ",
+    "Atmospheric": "Atmosphérique", "Story Rich": "Riche en histoire", "Great Soundtrack": "Super bande-son",
+    "Open World": "Monde ouvert", "Sandbox": "Bac à sable", "Survival": "Survie", "Horror": "Horreur",
+    "Psychological Horror": "Horreur psychologique", "Puzzle": "Réflexion", "Platformer": "Plateforme",
+    "2D": "2D", "3D": "3D", "Pixel Graphics": "Pixel art", "Anime": "Anime", "Cute": "Mignon",
+    "Relaxing": "Relaxant", "Cozy": "Cosy", "Funny": "Drôle", "Dark": "Sombre", "Fantasy": "Fantasy",
+    "Sci-fi": "Science-fiction", "Space": "Espace", "Exploration": "Exploration", "Difficult": "Difficile",
+    "Roguelike": "Roguelike", "Rogue-like": "Roguelike", "Rogue-lite": "Roguelite", "Roguelite": "Roguelite",
+    "Souls-like": "Soulslike", "Metroidvania": "Metroidvania", "Deckbuilding": "Deckbuilding",
+    "Card Game": "Jeu de cartes", "Turn-Based": "Tour par tour", "Turn-Based Strategy": "Stratégie au tour par tour",
+    "Turn-Based Combat": "Combat au tour par tour", "Turn-Based Tactics": "Tactique au tour par tour",
+    "Tactical": "Tactique", "RTS": "Stratégie en temps réel", "Real-Time": "Temps réel", "Building": "Construction",
+    "Base Building": "Construction de base", "Crafting": "Fabrication", "Management": "Gestion",
+    "Resource Management": "Gestion de ressources", "Economy": "Économie", "City Builder": "Construction de ville",
+    "Farming Sim": "Simulation agricole", "Life Sim": "Simulation de vie", "Shooter": "Tir", "FPS": "FPS",
+    "First-Person": "Vue à la première personne", "Third Person": "Vue à la troisième personne",
+    "Third-Person Shooter": "Tir à la troisième personne", "Stealth": "Infiltration", "Hack and Slash": "Hack'n'slash",
+    "Action RPG": "RPG d'action", "JRPG": "JRPG", "Party-Based RPG": "RPG en équipe", "CRPG": "CRPG",
+    "Racing": "Course", "Sports": "Sport", "Fighting": "Combat", "Visual Novel": "Roman visuel",
+    "Choices Matter": "Choix décisifs", "Multiple Endings": "Fins multiples", "Mystery": "Mystère",
+    "Detective": "Enquête", "Retro": "Rétro", "Classic": "Classique", "Arcade": "Arcade",
+    "Female Protagonist": "Héroïne", "Character Customization": "Personnalisation du personnage",
+    "Procedural Generation": "Génération procédurale", "Zombies": "Zombies", "Post-apocalyptic": "Post-apocalyptique",
+    "Medieval": "Médiéval", "Historical": "Historique", "War": "Guerre", "Military": "Militaire",
+    "Physics": "Physique", "Comedy": "Comédie", "Colorful": "Coloré", "Stylized": "Stylisé",
+    "Hand-drawn": "Dessiné à la main", "Early Access": "Accès anticipé", "Free to Play": "Free-to-play",
+    "Massively Multiplayer": "Massivement multijoueur", "Moddable": "Moddable", "Bullet Hell": "Bullet hell",
+    "Top-Down": "Vue de dessus", "Isometric": "Isométrique", "Side Scroller": "Défilement horizontal",
+    "Nudity": "Nudité", "Violent": "Violent", "Gore": "Gore", "Sexual Content": "Contenu sexuel",
+    "Mature": "Mature", "Family Friendly": "Pour toute la famille", "Education": "Éducatif",
+  };
+  const tagFr = (t) => TAGS_FR[t] || t;
+
+  // barres horizontales ; la valeur passe dans la barre quand celle-ci est assez longue
   function bars(el, items, { value, label, max }) {
     if (!items.length) { el.innerHTML = `<li class="empty">Pas encore assez de données.</li>`; return; }
     const top = max ?? Math.max(...items.map(value));
@@ -151,6 +231,54 @@
     }).join("");
   }
 
+  function kpis(s, rate) {
+    const share = s.games ? (100 * s.lowest_ever_games) / s.games : 0;
+    const tiles = [
+      { label: "Jeux en promo aujourd'hui", value: nf.format(s.games), sub: `dont ${nf.format(s.multi_store_games)} vendus par plusieurs boutiques` },
+      { label: "Réduction médiane", value: `−${pct(s.median_best_savings)}`, accent: true, sub: "la moitié des jeux est soldée au moins à ce niveau" },
+      { label: "Au prix le plus bas de leur histoire", value: nf.format(s.lowest_ever_games), sub: `soit ${pct(share, 1)} des jeux en promo` },
+      { label: "Prix médian d'un jeu en promo", value: eurF.format(s.median_best_price_usd * rate), sub: "meilleur prix du jour, toutes boutiques" },
+    ];
+    $("kpis").innerHTML = tiles.map((t) => `<div class="kpi"><span class="k-label">${esc(t.label)}</span>
+      <span class="k-value ${t.accent ? "accent" : ""}">${esc(t.value)}</span><span class="k-sub">${esc(t.sub)}</span></div>`).join("");
+  }
+
+  function cheapestTable(stores) {
+    const rows = stores.filter((x) => x.games_compared >= 10)
+      .map((x) => ({ ...x, share: (100 * x.times_cheapest) / x.games_compared }))
+      .sort((a, b) => b.share - a.share || a.avg_overprice_pct - b.avg_overprice_pct);
+    if (!rows.length) { $("cheapest").innerHTML = `<tr><td class="empty">Pas encore assez de données.</td></tr>`; return; }
+    const best = rows[0];
+    $("cheapestRead").innerHTML = `Comment lire : <strong>${esc(best.store_name)}</strong> vend ${nf.format(best.games_compared)} jeux aussi proposés ailleurs. ` +
+      `Elle a le meilleur prix pour ${nf.format(best.times_cheapest)} d'entre eux (${pct(best.share)}), et sur l'ensemble de ces jeux, ` +
+      `elle est en moyenne ${pct(best.avg_overprice_pct ?? 0, 1)} au-dessus du meilleur prix.`;
+    $("cheapest").innerHTML = `<thead><tr><th>Boutique</th><th>Moins chère pour…</th><th class="num">Jeux comparés</th><th class="num">Écart moyen avec le meilleur prix<br><span style=\"font-weight:400\">0 % = toujours la moins chère</span></th></tr></thead><tbody>` +
+      rows.map((x, i) => `<tr class="${i === 0 ? "best" : ""}">
+        <td class="store">${esc(x.store_name)}</td>
+        <td class="barcell"><span class="mini"><span class="track"><span class="fill" style="width:${x.share}%"></span></span><b>${pct(x.share)}</b></span></td>
+        <td class="num">${nf.format(x.times_cheapest)} sur ${nf.format(x.games_compared)}</td>
+        <td class="num">${x.avg_overprice_pct == null ? "—" : `+${pct(x.avg_overprice_pct, 1)}`}</td>
+      </tr>`).join("") + "</tbody>";
+  }
+
+  function histogram(discounts, s) {
+    const counts = Array.from({ length: 10 }, (_, i) => discounts.find((b) => b.bucket === i * 10)?.games ?? 0);
+    const total = counts.reduce((a, b) => a + b, 0) || 1;
+    const maxN = Math.max(1, ...counts);
+    const iMed = Math.min(9, Math.floor((s.median_best_savings ?? 0) / 10));
+    const label = (i) => (i === 9 ? "90–100 %" : `${i * 10}–${i * 10 + 9} %`);
+    $("histoRead").innerHTML = `Comment lire : la barre en cyan contient la réduction médiane (<strong>−${pct(s.median_best_savings)}</strong>) : ` +
+      `la moitié des jeux sont soldés à ce niveau ou plus. <strong>${nf.format(s.games_75_plus)}</strong> jeux ` +
+      `(${pct((100 * s.games_75_plus) / total)}) le sont à 75 % ou plus.`;
+    $("histo").setAttribute("aria-label", counts.map((n, i) => `${label(i)} : ${n} jeux`).join(", "));
+    $("histo").innerHTML = counts.map((n, i) => `
+      <div class="col ${i === iMed ? "median" : ""}" title="${label(i)} : ${nf.format(n)} jeux (${pct((100 * n) / total, 1)})">
+        <span class="n">${nf.format(n)}<span class="p">${pct((100 * n) / total)}</span></span>
+        <span class="stack" style="height:${(n / maxN) * 76}%"></span>
+      </div>`).join("");
+    $("axis").innerHTML = counts.map((_, i) => `<span>${label(i)}</span>`).join("");
+  }
+
   async function init() {
     let d;
     try {
@@ -161,44 +289,26 @@
       $("lede").textContent = "Impossible de charger les chiffres. Recharge la page dans quelques minutes.";
       return;
     }
-
     const s = d.summary || {};
-    $("lede").innerHTML =
-      `Aujourd'hui, <strong>${nf.format(s.games)}</strong> jeux PC sont en promo, avec une meilleure réduction moyenne de ` +
-      `<strong>${Math.round(s.avg_best_savings)} %</strong>. ` +
-      `<strong>${nf.format(s.lowest_ever_games)}</strong> sont au prix le plus bas de leur histoire, et ` +
-      `${nf.format(s.multi_store_games)} sont vendus par plusieurs boutiques à la fois.`;
-    $("stamp").textContent = `Prix relevés le ${fmtDate.format(new Date(d.snapshot_ts))}, sur ${s.days_tracked} jour${s.days_tracked > 1 ? "s" : ""} de suivi.`;
+    const rate = (d.fx && d.fx.usd_to_eur) || 1 / 1.15;
 
-    // boutique la moins chère le plus souvent
-    const cheap = d.stores
-      .filter((x) => x.games_compared >= 10)
-      .map((x) => ({ ...x, _name: x.store_name, _pct: (100 * x.times_cheapest) / x.games_compared }))
-      .sort((a, b) => b._pct - a._pct);
-    bars($("cheapest"), cheap, {
-      value: (x) => x._pct, max: 100,
-      label: (x) => `${Math.round(x._pct)} % (${x.times_cheapest} jeux sur ${x.games_compared})`,
-    });
+    $("lede").innerHTML = `Les promos sur les jeux PC du jour, vues dans leur ensemble : quelles boutiques sont les moins chères, ` +
+      `à quel point les jeux sont soldés, et quels styles de jeux on trouve en promo.`;
+    $("stamp").textContent = `Prix relevés le ${fmtDate.format(new Date(d.snapshot_ts))}, sur ${s.days_tracked} jour${s.days_tracked > 1 ? "s" : ""} de suivi. ` +
+      `Prix en euros, convertis du dollar au taux BCE du jour.`;
 
-    // réduction moyenne par boutique
-    const sav = d.stores.map((x) => ({ ...x, _name: x.store_name })).sort((a, b) => b.avg_savings_pct - a.avg_savings_pct);
-    bars($("savings"), sav, { value: (x) => x.avg_savings_pct, max: 100, label: (x) => `−${Math.round(x.avg_savings_pct)} %` });
+    kpis(s, rate);
+    cheapestTable(d.stores || []);
+    histogram(d.discounts || [], s);
 
-    // tags
-    const tags = d.tags.map((t) => ({ ...t, _name: t.tag }));
-    bars($("tags"), tags, { value: (t) => t.games, label: (t) => `${nf.format(t.games)} jeux` });
+    const sav = (d.stores || []).map((x) => ({ ...x, _name: x.store_name })).sort((a, b) => b.median_savings_pct - a.median_savings_pct);
+    bars($("savings"), sav, { value: (x) => x.median_savings_pct, max: 100,
+      label: (x) => `−${pct(x.median_savings_pct)} · ${nf.format(x.games_on_sale)} jeux` });
 
-    // histogramme des réductions (0-9 %, 10-19 %, …, 90 % et plus)
-    const counts = Array.from({ length: 10 }, (_, i) => d.discounts.find((b) => b.bucket === i * 10)?.games ?? 0);
-    const maxN = Math.max(1, ...counts);
-    const iTop = counts.indexOf(Math.max(...counts));
-    $("histo").setAttribute("aria-label", counts.map((n, i) => `${i * 10} à ${i * 10 + 9} % : ${n} jeux`).join(", "));
-    $("histo").innerHTML = counts.map((n, i) => `
-      <div class="col ${i === iTop ? "top" : ""}">
-        <span class="n">${n ? nf.format(n) : ""}</span>
-        <span class="stack" style="height:${(n / maxN) * 82}%"></span>
-      </div>`).join("");
-    $("axis").innerHTML = counts.map((_, i) => `<span>${i === 9 ? "90 %+" : `${i * 10} %`}</span>`).join("");
+    const tagged = d.tags?.[0]?.tagged_games || 0;
+    if (tagged) $("tagsNote").textContent = `Part des ${nf.format(tagged)} jeux en promo qui ont des tags joueurs Steam. Un jeu a plusieurs tags : les pourcentages ne s'additionnent pas.`;
+    const tags = (d.tags || []).map((t) => ({ ...t, _name: tagFr(t.tag), share: tagged ? (100 * t.games) / tagged : 0 }));
+    bars($("tags"), tags, { value: (t) => t.share, max: 100, label: (t) => `${pct(t.share)} · ${nf.format(t.games)} jeux` });
   }
 
   init();
