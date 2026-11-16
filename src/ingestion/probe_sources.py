@@ -109,6 +109,14 @@ def main() -> int:
         call(itad, f"itad_history_steam_{i}", "GET", f"{ITAD}/games/history/v2", out_dir,
              params={"id": g, "country": "FR", "shops": STEAM_SHOP_ID})
     call(itad, "itad_history_all_shops", "GET", f"{ITAD}/games/history/v2", out_dir, params={"id": gid, "country": "FR"})
+    # sans « since », ITAD ne renvoie que les 3 derniers mois : on teste l'historique complet
+    for i, g in enumerate(game_ids):
+        call(itad, f"itad_history_full_{i}", "GET", f"{ITAD}/games/history/v2", out_dir,
+             params={"id": g, "country": "FR", "shops": STEAM_SHOP_ID, "since": "2010-01-01T00:00:00Z"})
+    # sans « since », ITAD ne renvoie que les 3 derniers mois : on teste l'historique complet
+    for i, g in enumerate(game_ids):
+        call(itad, f"itad_history_full_{i}", "GET", f"{ITAD}/games/history/v2", out_dir,
+             params={"id": g, "country": "FR", "shops": STEAM_SHOP_ID, "since": "2010-01-01T00:00:00Z"})
     call(itad, "itad_prices_v3", "POST", f"{ITAD}/games/prices/v3", out_dir,
          params={"country": "FR", "shops": STEAM_SHOP_ID}, json=game_ids)
     call(itad, "itad_overview_v2", "POST", f"{ITAD}/games/overview/v2", out_dir, params={"country": "FR"}, json=game_ids)
@@ -121,7 +129,7 @@ def main() -> int:
     many = [v for v in found.values() if v] if isinstance(found, dict) else []
     log.info("lookup 1000 : %d identifiants trouvés", len(many))
     # combien de jeux par requête de prix ? (on teste 200 puis tout ce qu'on a)
-    for n in (200, len(many)):
+    for n in (200,):
         if n and len(many) >= n:
             time.sleep(1)
             call(itad, f"itad_prices_v3_{n}", "POST", f"{ITAD}/games/prices/v3", out_dir,
