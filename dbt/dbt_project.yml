@@ -9,6 +9,11 @@ macro-paths: ["macros"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+vars:
+  # prédiction des baisses de prix : « baisse d'au moins 10 % dans les 14 jours »
+  drop_horizon_days: 14
+  drop_threshold: 0.10
+
 models:
   dealhunter:
     staging:

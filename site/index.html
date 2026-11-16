@@ -127,6 +127,7 @@
   .low-badge { color: var(--cyan); font-weight: 700; }
   .eur { font-weight: 600; color: var(--text); }
   .wished { color: var(--cyan); font-weight: 700; }
+  .drop-badge { color: var(--text); font-weight: 700; }
 
   /* la réduction : posée dans l'image, plus rien ne dépasse de la carte */
   .sticker {
@@ -175,6 +176,13 @@
   .chips li { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-soft); }
   .verdict { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--surface-2); border-left: 3px solid var(--cyan); font-size: 15px; }
   .verdict strong { font-weight: 750; color: var(--cyan); }
+  .forecast { margin: 10px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--surface-2); border-left: 3px solid var(--text-mute); font-size: 15px; }
+  .forecast strong { font-weight: 750; }
+  .forecast .odds { display: flex; gap: 4px; margin: 10px 0 6px; }
+  .forecast .odds i { flex: 1; height: 8px; border-radius: 2px; background: var(--border); }
+  .forecast .odds i.on { background: var(--cyan); }
+  .forecast small { display: block; color: var(--text-mute); font-size: 12.5px; margin-top: 6px; }
+  .forecast a { color: var(--text-soft); }
   .follow { font: inherit; font-weight: 700; font-size: 15px; margin-top: 16px; padding: 9px 14px; border-radius: 8px; cursor: pointer;
             border: 0; background: var(--cyan); color: var(--on-cyan); }
   .follow[aria-pressed="true"] { background: transparent; color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan); }
@@ -268,6 +276,7 @@
     <label class="field check"><input type="checkbox" id="coopOnly"> Jouable en coop</label>
     <label class="field check"><input type="checkbox" id="goodOnly"> Bien notés</label>
     <label class="field check"><input type="checkbox" id="wishOnly"> Ma liste</label>
+    <label class="field check" id="stableField" hidden><input type="checkbox" id="stableOnly"> Pas de baisse en vue</label>
     <span class="count" id="count" aria-live="polite"></span>
     <p class="ai-status" id="aiStatus" aria-live="polite" hidden></p>
   </div>
@@ -502,6 +511,7 @@
     const coopOnly = $("coopOnly").checked;
     const goodOnly = $("goodOnly").checked;
     const wishOnly = $("wishOnly").checked;
+    const stableOnly = $("stableOnly").checked;
     const c = (ai.on && ai.constraints) || {};
 
     filtered = data.games.filter((g) =>
@@ -518,7 +528,8 @@
       (!lowOnly || g.is_lowest_ever) &&
       (!genre || (g.genres || []).includes(genre)) &&
       (!coopOnly || g.coop) &&
-      (!goodOnly || (g.steam_pct ?? 0) >= 80)
+      (!goodOnly || (g.steam_pct ?? 0) >= 80) &&
+      (!stableOnly || g.drop?.band === "peu_probable")
     );
 
     if (ai.scores) {
@@ -569,6 +580,7 @@
             <span>${nStores > 1 ? `${nStores} boutiques` : esc(storeName(g.offers[0].store_id))}</span>
             ${g.eur != null ? `<span class="eur">${esc(fmtEur.format(g.eur))} sur Steam</span>` : ""}
             ${rating ? `<span>${rating}</span>` : ""}
+            ${g.drop?.band === "probable" ? '<span class="drop-badge">Peut baisser bientôt</span>' : ""}
             ${wish.has(g.id) ? '<span class="wished">Dans ta liste</span>' : ""}
           </span>
         </span>
@@ -679,6 +691,30 @@
     return `<strong>Tu peux attendre.</strong> Ce jeu est déjà descendu à ${esc(fmt.format(low))}${when ? ` en ${when}` : ""}, soit ${Math.round(((g.best_price - low) / g.best_price) * 100)} % de moins qu'aujourd'hui.${saleTip}`;
   }
 
+  // ---------- prévision du modèle (src/ml/predict_drops.py) ----------
+  const FORECAST = {
+    probable: "Bonne chance de baisse",
+    assez_probable: "Baisse possible",
+    possible: "Petite chance de baisse",
+    peu_probable: "Pas de baisse en vue",
+  };
+
+  function forecastHtml(g) {
+    const m = data.model;
+    if (!m || !g.drop || m.observed[g.drop.band] == null) return "";
+    const rate = m.observed[g.drop.band];               // part des jeux de cette tranche qui ont VRAIMENT baissé
+    const tenths = Math.round(rate * 10);
+    const odds = tenths < 1 ? "moins de 1 sur 10" : `environ ${tenths} sur 10`;
+    const pct = Math.round(m.threshold * 100);
+    return `
+      <div class="forecast">
+        <strong>${FORECAST[g.drop.band]} dans les ${m.horizon_days} jours.</strong>
+        Parmi les jeux dans une situation de prix comparable, ${odds} ont baissé d'au moins ${pct} % dans les ${m.horizon_days} jours suivants.
+        <div class="odds" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i class="${i < tenths ? "on" : ""}"></i>`).join("")}</div>
+        <small>Prévision statistique, pas une promesse : elle ne connaît pas les soldes annoncés ni les promos des éditeurs. <a href="sante.html#modele">Comment c'est calculé</a></small>
+      </div>`;
+  }
+
   function chartSvg(points, normal) {
     // prix minimum du jour, toutes boutiques confondues
     const byDay = new Map();
@@ -751,6 +787,7 @@
         ${g.desc ? `<p class="desc">${esc(g.desc)}</p>` : ""}
         ${chips.length ? `<ul class="chips">${chips.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
         <p class="verdict">${verdict(g)}</p>
+        ${forecastHtml(g)}
         ${g.eur != null ? `<p class="desc">Sur Steam France : <strong>${esc(fmtEur.format(g.eur))}</strong>${g.eur_normal && g.eur_normal > g.eur ? ` au lieu de ${esc(fmtEur.format(g.eur_normal))}` : ""}.</p>` : ""}
         <button class="follow" id="follow" aria-pressed="${wish.has(g.id)}">${wish.has(g.id) ? "Suivi : retirer de ma liste" : "Suivre ce jeu"}</button>
         <a class="share" href="jeu/${g.id}-${encodeURIComponent(g.slug || "jeu")}.html">Page à partager</a>
@@ -820,7 +857,8 @@
     $("genre").insertAdjacentHTML("beforeend", (data.genres || []).map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join(""));
     $("store").insertAdjacentHTML("beforeend", opts.map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)}</option>`).join(""));
 
-    for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly", "wishOnly"]) {
+    $("stableField").hidden = !data.model;
+    for (const id of ["q", "store", "minSave", "sort", "genre", "lowOnly", "coopOnly", "goodOnly", "wishOnly", "stableOnly"]) {
       $(id).addEventListener(id === "q" ? "input" : "change", id === "q" ? onSearchInput : applyFilters);
     }
     $("more").addEventListener("click", renderMore);

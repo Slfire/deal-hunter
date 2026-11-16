@@ -5,6 +5,7 @@ Produit :
   site/data/deals.json             les jeux du dernier snapshot, offres regroupées par jeu
   site/data/history/<game_id>.json historique des prix d'un jeu (toutes boutiques)
   site/data/insights.json          statistiques pour la page Insights
+  site/data/model.json             rapport du modèle de prédiction des baisses (page Santé)
 
 Usage :
   python src/export/export_site_data.py
@@ -179,6 +180,32 @@ def upcoming_sales(today: date | None = None) -> list[dict]:
     return [s for s in sales if date.fromisoformat(s["end"]) >= today]
 
 
+def load_predictions(con) -> tuple[dict, dict | None]:
+    """Prédictions de baisse (src/ml/predict_drops.py) : {game_id: {p, band}} et le rapport du modèle.
+    Absentes si le script n'a pas tourné ou si le modèle n'a pas passé le garde-fou : le site s'en passe."""
+    tables = {r[0] for r in con.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'ml'").fetchall()}
+    report = None
+    if "model_report" in tables:
+        report = json.loads(con.execute("SELECT report FROM ml.model_report").fetchone()[0])
+    preds = {}
+    if "price_drop_predictions" in tables:
+        preds = {gid: {"p": p, "band": band} for gid, p, band in
+                 con.execute("SELECT game_id, p_drop, band FROM ml.price_drop_predictions").fetchall()}
+    return preds, report
+
+
+def model_summary(report: dict | None) -> dict | None:
+    """Ce dont la fiche jeu a besoin pour formuler la prédiction : horizon, seuil et, par tranche,
+    la part de jeux qui ont réellement baissé (validation croisée)."""
+    if not report or not report.get("published"):
+        return None
+    v = report["validation"]
+    return {"horizon_days": report["horizon_days"], "threshold": report["threshold"], "date": report["date"],
+            "auc": v["auc"], "base_rate": v["base_rate"],
+            "observed": {b["band"]: b["observed"] for b in v["bands"]}}
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     if not DB_PATH.exists():
@@ -195,11 +222,15 @@ def main() -> int:
         games = rows(con, GAMES_SQL)
         history = rows(con, HISTORY_SQL)
         insights = {k: rows(con, sql) for k, sql in INSIGHTS_SQL.items()}
+        preds, report = load_predictions(con)
     finally:
         con.close()
 
+    model = model_summary(report)
     for g in games:
         g["slug"] = slugify(g["title"])
+        if model and g["id"] in preds:
+            g["drop"] = preds[g["id"]]
 
     # on repart d'un dossier propre pour ne pas garder l'historique de jeux disparus
     if OUT_DIR.exists():
@@ -214,6 +245,7 @@ def main() -> int:
         "stores": stores,
         "genres": sorted({x for g in games for x in (g["genres"] or [])}, key=str.casefold),
         "steam_sales": upcoming_sales(),
+        "model": model,
         "games": games,
     })
 
@@ -227,10 +259,14 @@ def main() -> int:
     insights["snapshot_ts"] = to_jsonable(snapshot_ts)
     insights["fx"] = fx
     dump(OUT_DIR / "insights.json", insights)
+    if report:
+        runs_file = PROJECT_ROOT / "data" / "ref" / "model_runs.json"
+        report["history"] = json.loads(runs_file.read_text(encoding="utf-8")) if runs_file.exists() else []
+        dump(OUT_DIR / "model.json", report)
 
 
-    log.info("Export : %d jeux, %d offres, %d historiques -> site/data/",
-             len(games), sum(len(g["offers"]) for g in games), len(by_game))
+    log.info("Export : %d jeux, %d offres, %d historiques, %d prédictions -> site/data/",
+             len(games), sum(len(g["offers"]) for g in games), len(by_game), sum("drop" in g for g in games))
     return 0
 
 

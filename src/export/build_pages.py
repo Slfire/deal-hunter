@@ -121,6 +121,7 @@ font-weight:800;font-stretch:85%;font-size:22px;box-shadow:0 2px 10px rgba(0,0,0
 h2{margin:30px 0 10px;font-size:18px;font-weight:750}.meta{color:var(--soft);font-size:14px;line-height:1.6}
 .price{font-size:44px;font-weight:800;font-stretch:75%;line-height:1;margin:16px 0 0}.was{color:var(--mute);text-decoration:line-through;font-size:16px;margin-left:8px}
 .verdict{margin:16px 0 0;padding:12px 14px;border-radius:8px;background:var(--surface-2);border-left:3px solid var(--cyan)}.verdict strong{color:var(--cyan)}
+.forecast{margin:10px 0 0;padding:12px 14px;border-radius:8px;background:var(--surface-2);border-left:3px solid var(--mute)}.forecast small{display:block;color:var(--mute);font-size:13px;margin-top:6px}
 .chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:12px 0 0}
 .chips li{font-size:13px;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--soft)}
 p,li{color:var(--soft)}strong{color:var(--text)}
@@ -136,7 +137,25 @@ footer.wrap{padding-bottom:36px;color:var(--mute);font-size:14px}
 """
 
 
-def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snapshot: str) -> str:
+FORECAST = {"probable": "Bonne chance de baisse", "assez_probable": "Baisse possible",
+            "possible": "Petite chance de baisse", "peu_probable": "Pas de baisse en vue"}
+
+
+def forecast_html(g: dict, model: dict | None) -> str:
+    """Prévision du modèle (même texte que la fiche du site principal). Vide si le modèle n'est pas publié."""
+    drop = g.get("drop")
+    if not model or not drop or model["observed"].get(drop["band"]) is None:
+        return ""
+    tenths = round(model["observed"][drop["band"]] * 10)
+    odds = "moins de 1 sur 10" if tenths < 1 else f"environ {tenths} sur 10"
+    h, pct = model["horizon_days"], round(model["threshold"] * 100)
+    return (f'<div class="forecast"><strong>{escape(FORECAST[drop["band"]])} dans les {h} jours.</strong> '
+            f"Parmi les jeux dans une situation de prix comparable, {odds} ont baissé d'au moins {pct} % "
+            f"dans les {h} jours suivants.<small>Prévision statistique, pas une promesse : elle ne connaît pas "
+            f'les soldes annoncés ni les promos des éditeurs. <a href="../sante.html#modele">Comment c\'est calculé</a></small></div>')
+
+
+def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snapshot: str, model: dict | None = None) -> str:
     url = SITE_URL + page_path(g)
     title_v, text_v = verdict(g)
     pct = round(g["best_savings"])
@@ -217,6 +236,7 @@ def render(g: dict, stores: dict, history: list[dict], similar: list[dict], snap
     <p class="price">{escape(usd(g['best_price']))}<span class="was">{escape(usd(g['normal_price']))}</span></p>
     {eur_html}
     <p class="verdict"><strong>{escape(title_v)}.</strong> {escape(text_v)}</p>
+    {forecast_html(g, model)}
     {f"<p>{escape(g['desc'])}</p>" if g.get('desc') else ''}
     {'<ul class="chips">' + ''.join(f'<li>{escape(t)}</li>' for t in tags) + '</ul>' if tags else ''}
     <h2>Prix par boutique</h2>
@@ -264,7 +284,7 @@ def main() -> int:
         sims = [by_id[i] for i in similar.get(str(g["id"]), [])
                 if i in by_id and by_id[i].get("best_price") is not None and by_id[i].get("best_savings") is not None]
         try:
-            html = render(g, data["stores"], history, sims, snapshot_fr)
+            html = render(g, data["stores"], history, sims, snapshot_fr, data.get("model"))
         except Exception:   # un jeu aux données inattendues ne doit pas bloquer la publication du site
             log.exception("Page impossible pour le jeu %s (%s) : ignorée", g.get("id"), g.get("title"))
             failed += 1

@@ -35,3 +35,23 @@ models:
     columns:
       - name: store_id
         tests: [unique, not_null]
+
+  - name: fct_game_daily_price
+    description: "Meilleur prix du jour d'un jeu toutes boutiques confondues (source CheapShark /games, boutiques sans promo comprises)"
+    columns:
+      - name: best_price
+        tests: [not_null]
+
+  - name: ml_price_drop_features
+    description: >
+      Données du modèle de prédiction : variables connues le jour J (passé uniquement) et cible will_drop
+      (baisse d'au moins drop_threshold dans les drop_horizon_days jours suivants, définie seulement quand ces jours sont passés)
+    columns:
+      - name: game_id
+        tests: [not_null]
+      - name: will_drop
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Santé du pipeline — Deal Hunter</title>
-<meta name="description" content="Fraîcheur des données, volumes collectés, couverture des enrichissements et tests de qualité du pipeline Deal Hunter.">
+<meta name="description" content="Fraîcheur des données, volumes collectés, couverture des enrichissements, tests de qualité et fiabilité du modèle de prédiction de Deal Hunter.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,6 +30,7 @@
   h2 { margin:0; font-size:21px; font-weight:800; font-stretch:110%; }
   .note { margin:6px 0 16px; color:var(--soft); font-size:15px; max-width:66ch; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  main.wrap > *, .two > * { min-width:0; }   /* un tableau large défile dans sa section, la page ne déborde pas */
 
   .cov { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
   .cov li { display:grid; grid-template-columns:minmax(150px,220px) 1fr 56px; gap:12px; align-items:center; font-size:15px; }
@@ -43,6 +44,16 @@
   .tests b { font-size:30px; font-weight:800; font-stretch:75%; margin-right:4px; }
   .tests .ok b { color:var(--ok); } .tests .warn b { color:var(--warn); } .tests .bad b { color:var(--bad); }
   .problems { margin:14px 0 0; padding-left:18px; font-size:15px; }
+
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:0 0 18px; }
+  .kpi { background:var(--track); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .kpi b { display:block; font-size:32px; font-weight:800; font-stretch:75%; line-height:1.05; }
+  .kpi span { display:block; font-size:13.5px; color:var(--soft); margin-top:4px; }
+  .kpi.hi b { color:var(--cyan); }
+  .calib td .bar { display:block; height:10px; border-radius:999px; background:var(--cyan); min-width:2px; }
+  .calib td.barcell { width:40%; }
+  h3 { margin:22px 0 4px; font-size:16px; font-weight:750; }
+  .feats { margin:6px 0 0; padding-left:18px; font-size:15px; color:var(--soft); columns:2 260px; }
 
   .vol { width:100%; height:auto; display:block; }
   table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
@@ -84,6 +95,12 @@
       <ul class="problems" id="problems"></ul>
     </section>
   </div>
+
+  <section id="modele">
+    <h2>Le modèle de prédiction des baisses</h2>
+    <p class="note" id="modelIntro">Chargement…</p>
+    <div id="modelBody"></div>
+  </section>
 
   <section>
     <h2>Derniers runs</h2>
@@ -179,7 +196,77 @@
         runs.map((r) => `<tr><td>${esc(dt.format(new Date(r.date)))}</td><td class="num">${r.duration_min != null ? `${r.duration_min} min` : "—"}</td><td class="num">${nf.format(r.games ?? 0)}</td><td class="num">${nf.format(r.deals ?? 0)}</td><td class="num">${r.tests_pass ?? "—"}</td><td class="num">${r.tests_warn ?? "—"}</td><td class="num">${r.tests_fail ?? "—"}</td></tr>`).join("") + "</tbody>"
       : `<tr><td class="note">L'historique des runs commence au prochain run automatique.</td></tr>`;
   }
+  const BAND_LABELS = { peu_probable: "Pas de baisse en vue", possible: "Petite chance", assez_probable: "Baisse possible", probable: "Bonne chance" };
+  const FEAT_LABELS = {
+    discount: "Réduction du jour", ratio_to_lowest_ever: "Écart avec le plus bas historique", at_lowest_ever: "Au plus bas historique ou pas",
+    log_retail_price: "Prix normal", days_seen_before: "Jours déjà suivis", days_since_prev_seen: "Jours depuis le relevé précédent",
+    change_vs_prev_seen: "Variation depuis le relevé précédent", ratio_to_min_seen: "Écart avec le plus bas de nos relevés",
+    ratio_to_max_seen: "Écart avec le plus haut de nos relevés", days_seen_last_7d: "Jours relevés sur 7 jours",
+    days_on_sale_last_7d: "Jours en promo sur 7 jours", n_stores: "Nombre de boutiques", n_stores_on_sale: "Boutiques en promo",
+    steam_on_sale: "En promo sur Steam ou pas",
+  };
+  const pc = (x) => `${Math.round(x * 100)} %`;
+
+  function calibTable(bands) {
+    return `<div class="scroll"><table class="calib"><thead><tr><th>Prévision affichée</th><th class="num">Exemples</th><th class="num">Prévu</th><th class="num">Vraiment baissé</th><th></th></tr></thead><tbody>` +
+      bands.filter((b) => b.n).map((b) => `<tr><td>${esc(BAND_LABELS[b.band] || b.band)}</td><td class="num">${nf.format(b.n)}</td><td class="num">${pc(b.predicted)}</td><td class="num"><strong>${pc(b.observed)}</strong></td><td class="barcell"><span class="bar" style="width:${Math.max(1, b.observed * 100)}%"></span></td></tr>`).join("") +
+      `</tbody></table></div>`;
+  }
+
+  async function initModel() {
+    let m;
+    try {
+      const r = await fetch("data/model.json", { cache: "no-cache" });
+      if (!r.ok) throw new Error(r.status);
+      m = await r.json();
+    } catch {
+      $("modelIntro").textContent = "Le modèle n'a pas encore tourné sur ce run.";
+      return;
+    }
+    const v = m.validation || {};
+    const pct = Math.round(m.threshold * 100);
+    $("modelIntro").innerHTML = `Pour chaque jeu en promo, le modèle estime la chance que son meilleur prix baisse d'<strong>au moins ${pct} % dans les ${m.horizon_days} jours</strong>. ` +
+      (m.published
+        ? `Il a été entraîné le ${esc(dShort.format(new Date(m.date)))} sur ${nf.format(v.rows)} situations passées (${nf.format(v.games)} jeux) dont on connaît la suite.`
+        : `<strong>Prédictions non publiées aujourd'hui</strong> : ${esc(m.reason)}. Le site affiche alors seulement son verdict habituel.`);
+    if (!v.auc) return;
+
+    const gain = v.brier_baseline ? Math.round((1 - v.brier / v.brier_baseline) * 100) : null;
+    const best = (v.bands || []).find((b) => b.band === "probable");
+    let html = `<div class="kpis">
+      <div class="kpi hi"><b>${Math.round(v.auc * 100)} / 100</b><span>Fois où, entre un jeu qui a baissé et un qui n'a pas baissé, le modèle donne la plus forte chance au bon (AUC). Au hasard : 50.</span></div>
+      <div class="kpi"><b>${pc(v.base_rate)}</b><span>Des jeux en promo baissent encore d'au moins ${pct} % dans les ${m.horizon_days} jours. C'est la chance « au hasard ».</span></div>
+      ${best && best.n ? `<div class="kpi hi"><b>${pc(best.observed)}</b><span>Des jeux classés « Bonne chance de baisse » ont vraiment baissé, soit ${(best.observed / v.base_rate).toFixed(1).replace(".", ",")} fois plus qu'au hasard.</span></div>` : ""}
+      ${gain != null ? `<div class="kpi"><b>−${gain} %</b><span>D'erreur de probabilité par rapport à une prévision qui donnerait toujours ${pc(v.base_rate)} (score de Brier).</span></div>` : ""}
+    </div>
+    <h3>Est-ce que les prévisions tiennent ?</h3>
+    <p class="note">Chaque prévision a été faite par un modèle qui n'avait jamais vu le jeu concerné (validation croisée par jeu). On compare ce qui était prévu à ce qui s'est réellement passé.</p>
+    ${calibTable(v.bands || [])}`;
+
+    const tr = m.track_record;
+    html += `<h3>Bilan réel des prédictions publiées</h3>`;
+    if (tr && tr.auc) {
+      html += `<p class="note">${nf.format(tr.checked)} prédictions publiées sur le site, dont les ${m.horizon_days} jours sont passés. Score réel : <strong>${Math.round(tr.auc * 100)} / 100</strong>.</p>${calibTable(tr.bands || [])}`;
+    } else {
+      html += `<p class="note">Les prédictions publiées sont archivées chaque jour. Le premier bilan réel sera possible ${m.horizon_days} jours après la première publication.</p>`;
+    }
+
+    html += `<h3>Ce que regarde le modèle</h3>
+      <p class="note">Uniquement ce qui était connu le jour de la prévision, jamais la suite. Aucune information sur l'identité du jeu (note, notoriété) : le modèle apprend des profils de prix, pas des noms de jeux.</p>
+      <ul class="feats">${(m.features || []).map((f) => `<li>${esc(FEAT_LABELS[f] || f)}</li>`).join("")}</ul>
+      <h3>Limites</h3>
+      <p class="note">Le modèle ne connaît ni les soldes annoncés par Valve ni les promos prévues par les éditeurs, et il apprend sur quelques semaines de relevés seulement : ses scores évolueront avec l'historique. Si sa qualité passe sous un seuil (AUC 0,65), les prédictions sont retirées automatiquement du site.</p>`;
+
+    const hist = (m.history || []).filter((r) => r.auc);
+    if (hist.length > 1) {
+      html += `<h3>Évolution du score</h3><div class="scroll"><table><thead><tr><th>Jour</th><th class="num">Exemples</th><th class="num">Score (AUC)</th><th class="num">Publié</th></tr></thead><tbody>` +
+        hist.slice(-14).reverse().map((r) => `<tr><td>${esc(dShort.format(new Date(r.date)))}</td><td class="num">${nf.format(r.rows)}</td><td class="num">${Math.round(r.auc * 100)} / 100</td><td class="num">${r.published ? "Oui" : "Non"}</td></tr>`).join("") + `</tbody></table></div>`;
+    }
+    $("modelBody").innerHTML = html;
+  }
+
   init();
+  initModel();
 })();
 </script>
 </body>
