@@ -1,0 +1,13 @@
+[
+ {
+  "date": "2026-11-16",
+  "published": true,
+  "reason": "ok",
+  "rows": 12228,
+  "games": 2311,
+  "base_rate": 0.1337,
+  "auc": 0.8003,
+  "average_precision": 0.4034,
+  "brier": 0.098
+ }
+]
