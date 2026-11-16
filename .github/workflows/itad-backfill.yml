@@ -1,0 +1,43 @@
+name: Historique IsThereAnyDeal
+
+# Rattrapage de l'historique complet des prix Steam, un jeu par requête, par tranches de 50 minutes
+# (limite ITAD : 1 000 requêtes / 5 min). Les jeux les plus joués d'abord. Quand tout est récupéré,
+# chaque run s'arrête en quelques secondes ; il ne reprend du travail qu'à l'arrivée de nouveaux jeux.
+on:
+  schedule:
+    - cron: "37 */2 * * *"     # toutes les 2 heures
+  workflow_dispatch:
+
+concurrency:
+  group: itad-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Historique des prix Steam (50 minutes maximum)
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+        run: python src/ingestion/itad_history.py --minutes 50
+
+      - name: Committer
+        if: always()               # même coupé en route, ce qui a été récupéré est gardé
+        run: |
+          git config user.name  "dealhunter-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/ref/itad
+          if git diff --cached --quiet; then echo "Rien de nouveau"; exit 0; fi
+          git commit -m "historique ITAD: $(date -u +%Y-%m-%dT%H:%M)"
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 10; done

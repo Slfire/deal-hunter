@@ -44,7 +44,7 @@ jobs:
     needs: check
     if: needs.check.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 90
     permissions:
       contents: write         # committer les nouveaux snapshots
     steps:
@@ -94,6 +94,13 @@ jobs:
         env:
           DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
         run: python src/ingestion/steam_prices.py
+
+      - name: Prix du jour de tout le catalogue (IsThereAnyDeal, seulement ce qui a changé)
+        continue-on-error: true      # le site actuel n'en dépend pas encore
+        env:
+          DEALHUNTER_CONTACT: ${{ secrets.DEALHUNTER_CONTACT }}
+          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+        run: python src/ingestion/itad_prices.py
 
       - name: « Le jeu en bref » par IA (Groq, ou autre API compatible OpenAI)
         continue-on-error: true
@@ -165,7 +172,8 @@ jobs:
             echo "Rien de nouveau à committer"
           else
             git commit -m "data: snapshot $(date -u +%Y-%m-%d)"
-            git push
+            # le workflow d'historique ITAD pousse aussi : on récupère ses commits avant de pousser
+            for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 10; done
           fi
 
       - name: Préparer le site pour GitHub Pages
