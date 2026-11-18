@@ -55,3 +55,27 @@ models:
               values: [0, 1]
               quote: false
 
+
+  - name: dim_catalog
+    description: "v3 — catalogue des jeux Steam payants : prix du jour, historique des promos, réduction attendue de la prochaine promo"
+    columns:
+      - name: appid
+        tests: [unique, not_null]
+
+  - name: fct_steam_sale_episodes
+    description: "v3 — une ligne par promo Steam d'un jeu (début, fin, réduction maximale)"
+    columns:
+      - name: cut
+        tests: [not_null]
+
+  - name: dim_steam_major_sales
+    description: "v3 — jours de début des grandes soldes Steam : détectées dans les données (passé) ou annoncées (futur)"
+    columns:
+      - name: start_date
+        tests: [unique, not_null]
+
+  - name: ml_next_sale_samples
+    description: "v3 — données du modèle « quand aura lieu la prochaine promo ? » (variables du passé uniquement)"
+    columns:
+      - name: itad_id
+        tests: [not_null]

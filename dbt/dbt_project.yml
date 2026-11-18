@@ -13,6 +13,11 @@ vars:
   # prédiction des baisses de prix : « baisse d'au moins 10 % dans les 14 jours »
   drop_horizon_days: 14
   drop_threshold: 0.10
+  # v3 : prochaine promo des jeux du catalogue
+  major_sale_share: 0.25         # jour où plus de 25 % des jeux démarrent une promo = grande soldes Steam (≈ 70 % chez les jeux populaires)
+  next_sale_sample_every_days: 28   # un exemple d'entraînement toutes les 4 semaines par jeu
+  next_sale_history_years: 4        # on n'apprend que sur les 4 dernières années (le marché change)
+  next_sale_max_train_games: 20000  # plafond pour que l'entraînement tienne sur un runner GitHub
 
 models:
   dealhunter:

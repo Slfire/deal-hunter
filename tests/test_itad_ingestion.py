@@ -79,3 +79,14 @@ def test_rate_limiter_pauses(monkeypatch):
     for _ in range(4):
         limiter.wait()
     assert len(slept) == 1 and 10 <= slept[0] <= 11       # le 4e appel attend la fin de la fenêtre
+
+
+def test_catalog_merge_never_loses_games(tmp_path):
+    """Un relevé SteamSpy coupé en route ne doit faire disparaître aucun jeu du catalogue."""
+    old_rows = steam_catalog.parse_page(load("steamspy_page.json"))
+    previous = itad_common.write_part(tmp_path, old_rows, steam_catalog.COLUMNS, stamp="old")
+    today = [r for r in old_rows[:3]]
+    today[0] = today[0][:1] + ("Nouveau nom",) + today[0][2:]
+    merged = {r[0]: r for r in steam_catalog.merge_with_previous(today, previous)}
+    assert len(merged) == len(old_rows)                      # rien de perdu
+    assert merged[today[0][0]][1] == "Nouveau nom"           # le relevé du jour gagne

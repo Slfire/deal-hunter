@@ -297,7 +297,8 @@ def main() -> int:
     games = built
 
     urls = [f"  <url><loc>{SITE_URL}</loc><lastmod>{snap}</lastmod><changefreq>daily</changefreq></url>",
-            f"  <url><loc>{SITE_URL}insights.html</loc><lastmod>{snap}</lastmod></url>"]
+            f"  <url><loc>{SITE_URL}insights.html</loc><lastmod>{snap}</lastmod></url>",
+            f"  <url><loc>{SITE_URL}prevision.html</loc><lastmod>{snap}</lastmod></url>"]
     urls += [f"  <url><loc>{escape(SITE_URL + page_path(g))}</loc><lastmod>{snap}</lastmod></url>" for g in games]
     (SITE_DIR / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

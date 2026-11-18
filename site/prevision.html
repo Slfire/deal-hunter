@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prévisions de promos — Deal Hunter</title>
+<meta name="description" content="Pour chaque jeu Steam payant : quand la prochaine promo a des chances d'arriver, et de combien, d'après des années d'historique de prix.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* charte : noir, gris, cyan */
+    --shelf: #0b0d10; --tag: #14171c; --track: #1c2027; --line: #2a2f38; --bar: #3a414c;
+    --ink: #eef1f4; --ink-soft: #a3acb7; --mute: #6f7884;
+    --sticker: #22d3ee; --on-cyan: #04161a; --focus: #22d3ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--shelf); color: var(--ink);
+    font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.45; overflow-x: clip;
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+
+  header.wrap { padding-top: 48px; padding-bottom: 8px; }
+  .back { color: var(--ink-soft); font-size: 15px; }
+  .back:hover { color: var(--sticker); }
+  h1 { margin: 18px 0 0; font-size: clamp(40px, 7.5vw, 88px); line-height: .9; font-weight: 800; font-stretch: 125%; letter-spacing: -.02em; }
+  .lede { margin: 22px 0 0; max-width: 62ch; font-size: 20px; color: #c4cbd4; }
+  .lede strong { color: var(--sticker); font-weight: 800; }
+  .stamp { margin-top: 12px; color: var(--mute); font-size: 14px; }
+  .banner { margin: 18px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--track); border-left: 3px solid var(--sticker); max-width: 72ch; font-size: 15px; }
+  .banner strong { color: var(--sticker); }
+
+  main.wrap { padding-top: 28px; padding-bottom: 56px; display: grid; gap: 22px; }
+  main.wrap > *, section { min-width: 0; }
+  section { background: var(--tag); border: 1px solid var(--line); border-radius: 12px; padding: 22px 22px 24px; }
+  h2 { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 800; font-stretch: 110%; }
+  .note { margin: 6px 0 16px; color: var(--ink-soft); font-size: 15px; max-width: 66ch; }
+
+  /* recherche */
+  .search { display: grid; gap: 12px; }
+  .search input[type=search] { width: 100%; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--track); font-size: 18px; }
+  .search input::placeholder { color: var(--mute); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; cursor: pointer; font-size: 15px; }
+  .chip[aria-pressed="true"] { background: var(--sticker); color: var(--on-cyan); border-color: var(--sticker); font-weight: 700; }
+  .count { color: var(--ink-soft); font-size: 14px; }
+
+  .results { list-style: none; margin: 4px 0 0; padding: 0; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; padding: 12px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+  .row:hover .title { color: var(--sticker); }
+  .row .title { font-weight: 700; overflow-wrap: anywhere; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+  .row .price { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; text-align: right; }
+  .row .status { grid-column: 1 / -1; font-size: 14px; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--track); }
+  .pill.cyan { background: var(--sticker); color: var(--on-cyan); }
+  .more { margin-top: 12px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+  .empty { color: var(--ink-soft); padding: 14px 4px; }
+
+  /* fiche */
+  dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--tag); color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.65); }
+  .sheet { padding: 22px 22px 26px; }
+  .sheet-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+  .sheet h3 { margin: 0; font-size: 26px; line-height: 1.1; font-weight: 800; font-stretch: 110%; overflow-wrap: anywhere; }
+  .sheet .by { margin: 6px 0 0; color: var(--ink-soft); font-size: 14px; }
+  .close { flex: none; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: transparent; cursor: pointer; font-size: 20px; line-height: 1; }
+  .now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 16px 0 0; }
+  .now .big { font-size: 36px; font-weight: 800; font-stretch: 85%; font-variant-numeric: tabular-nums; }
+  .now .old { color: var(--mute); text-decoration: line-through; }
+  .block { margin: 18px 0 0; padding: 14px 16px; border-radius: 10px; background: var(--track); }
+  .block h4 { margin: 0 0 8px; font-size: 16px; font-weight: 800; }
+  .block p { margin: 6px 0 0; }
+  .block strong { color: var(--sticker); }
+  .horizons { display: grid; gap: 8px; margin-top: 10px; }
+  .hz { display: grid; grid-template-columns: 82px 1fr 52px; gap: 10px; align-items: center; font-size: 14px; }
+  .hz .track { height: 12px; background: var(--shelf); border-radius: 999px; overflow: hidden; }
+  .hz .fill { display: block; height: 100%; background: var(--bar); border-radius: 999px; }
+  .hz.hit .fill { background: var(--sticker); }
+  .hz b { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .small { color: var(--mute); font-size: 13px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 16px; }
+  .stat { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .stat b { display: block; font-size: 22px; font-weight: 800; font-stretch: 85%; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 13px; color: var(--ink-soft); }
+  .timeline svg { display: block; width: 100%; height: auto; margin-top: 8px; }
+  .links { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; }
+
+  /* fiabilité */
+  table.rel { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; min-width: 520px; }
+  .rel th { text-align: left; font-size: 13px; font-weight: 600; color: var(--ink-soft); padding: 0 10px 8px 0; }
+  .rel td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); }
+  .rel .num { text-align: right; }
+  .scroll { overflow-x: auto; }
+  footer.wrap { padding-bottom: 40px; color: var(--mute); font-size: 14px; }
+
+  @media (max-width: 640px) {
+    section { padding: 18px 16px 20px; }
+    .sheet { padding: 18px 16px 22px; }
+    .hz { grid-template-columns: 70px 1fr 48px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <a class="back" href="./">Retour aux promos</a>
+  <h1>Les <span style="color:var(--sticker)">prévisions</span></h1>
+  <p class="lede" id="lede">Chargement du catalogue…</p>
+  <p class="stamp" id="stamp"></p>
+  <p class="banner" id="banner" hidden></p>
+</header>
+
+<main class="wrap">
+  <section aria-labelledby="searchTitle">
+    <h2 id="searchTitle">Chercher un jeu</h2>
+    <p class="note">Tous les jeux Steam payants suivis. Clique sur un jeu pour voir quand sa prochaine promo a des chances d'arriver, de combien, et l'historique de ses promos.</p>
+    <div class="search">
+      <input type="search" id="q" placeholder="Hades, Stardew Valley, The Witcher…" autocomplete="off" aria-label="Nom du jeu">
+      <div class="chips" role="group" aria-label="Filtrer">
+        <button class="chip" data-filter="soon" aria-pressed="true">Promo probable sous 30 jours</button>
+        <button class="chip" data-filter="sale" aria-pressed="false">En promo maintenant</button>
+        <button class="chip" data-filter="all" aria-pressed="false">Tous</button>
+      </div>
+      <div class="count" id="count" aria-live="polite"></div>
+    </div>
+    <ul class="results" id="results"></ul>
+    <button class="more" id="more" hidden>Voir plus</button>
+  </section>
+
+  <section id="fiabilite" aria-labelledby="relTitle">
+    <h2 id="relTitle">Ces prévisions sont-elles fiables&nbsp;?</h2>
+    <p class="note" id="relIntro">Chargement…</p>
+    <div id="relBody"></div>
+  </section>
+</main>
+
+<dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet" id="sheetBody"></div></dialog>
+
+<footer class="wrap">
+  <p>Historique des prix : <a href="https://isthereanydeal.com">IsThereAnyDeal</a> · Catalogue : <a href="https://steamspy.com">SteamSpy</a> · Prix Steam France, en euros. <a href="sante.html">Santé du pipeline</a></p>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const eur = (cents) => cents == null ? "—" : (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  const nf = new Intl.NumberFormat("fr-FR");
+  const dLong = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const dDay = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
+  const toDate = (iso) => new Date(iso + "T12:00:00");
+  const norm = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  // même calcul que shard_of() dans src/export/export_catalog.py
+  const shardOf = (appid) => Math.imul(appid, 2654435761) >>> 24;
+
+  const PAGE = 40;
+  let meta, games = [], filter = "soon", shown = PAGE;
+  const shardCache = new Map();
+
+  async function getJson(url) {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${url} : ${r.status}`);
+    return r.json();
+  }
+
+  // ---------------- liste ----------------
+  function matches(g, words) {
+    return words.every((w) => g.key.includes(w));
+  }
+
+  function statusHtml(g) {
+    if (g.cut > 0) return `<span class="pill cyan">−${g.cut} % maintenant</span>`;
+    const parts = [];
+    if (g.p30 != null) parts.push(g.p30 >= 60 ? `<span class="pill cyan">Promo probable sous 30 j : ${g.p30} %</span>` : `Promo sous 30 j : ${g.p30} %`);
+    if (g.expected) parts.push(`dernière promo : −${g.expected} %`);
+    return parts.join("") || "Pas assez d'historique";
+  }
+
+  function render() {
+    const words = norm($("q").value).split(" ").filter(Boolean);
+    let list = games.filter((g) => matches(g, words));
+    if (filter === "soon") list = list.filter((g) => g.cut === 0 && g.p30 != null && g.p30 >= 60);
+    if (filter === "sale") list = list.filter((g) => g.cut > 0);
+    $("count").textContent = `${nf.format(list.length)} jeu${list.length > 1 ? "x" : ""}`;
+    $("results").innerHTML = list.length ? list.slice(0, shown).map((g) => `
+      <li class="row" data-app="${g.appid}">
+        <button class="title" type="button">${esc(g.name)}</button>
+        <span class="price">${eur(g.price)}</span>
+        <span class="status">${statusHtml(g)}</span>
+      </li>`).join("") : `<li class="empty">Aucun jeu ne correspond. Essaie un autre nom ou le filtre « Tous ».</li>`;
+    $("more").hidden = list.length <= shown;
+  }
+
+  // ---------------- fiche ----------------
+  async function details(appid) {
+    const n = shardOf(appid);
+    if (!shardCache.has(n)) shardCache.set(n, getJson(`data/catalog/details/${n}.json`));
+    return (await shardCache.get(n))[String(appid)];
+  }
+
+  function forecastHtml(d) {
+    if (d.cut > 0) {
+      return `<div class="block"><h4>En promo en ce moment</h4><p><strong>−${d.cut} %</strong> sur Steam. Pas de prévision tant que la promo dure.</p></div>`;
+    }
+    if (!d.forecast) {
+      return `<div class="block"><h4>Prochaine promo</h4><p>Pas de prévision pour ce jeu : historique trop court, ou modèle pas assez fiable aujourd'hui.</p></div>`;
+    }
+    const H = ["14", "30", "60", "90"];
+    const first = H.find((h) => d.forecast[h] >= 50);
+    const sentence = first
+      ? `Une promo a <strong>${d.forecast[first]} chances sur 100</strong> de commencer d'ici <strong>${first} jours</strong>.`
+      : `Pas de promo probable dans les 3 prochains mois (${d.forecast["90"]} chances sur 100).`;
+    let depth = "";
+    if (d.expected) {
+      const range = d.expected.low !== d.expected.high ? ` (entre −${d.expected.low} et −${d.expected.high} % ces dernières fois)` : "";
+      const est = d.regular ? `, soit environ <strong>${eur(Math.round(d.regular * (100 - d.expected.cut) / 100))}</strong>` : "";
+      depth = `<p>Réduction attendue : <strong>−${d.expected.cut} %</strong>${range}${est}.</p>`;
+    }
+    const major = (meta.upcoming_major_sales || [])[0];
+    const majorTxt = major ? `<p class="small">À savoir : ${esc(major.name)} le ${dDay.format(toDate(major.start))}. Le modèle en tient compte.</p>` : "";
+    return `<div class="block"><h4>Prochaine promo</h4><p>${sentence}</p>
+      <div class="horizons">${H.map((h) => `
+        <div class="hz ${first && Number(h) >= Number(first) ? "hit" : ""}"><span>d'ici ${h} j</span>
+          <span class="track"><span class="fill" style="width:${d.forecast[h]}%"></span></span><b>${d.forecast[h]} %</b></div>`).join("")}
+      </div>${depth}${majorTxt}</div>`;
+  }
+
+  function timelineSvg(sales) {
+    if (!sales.length) return `<p class="small">Aucune promo sur Steam ces 2 dernières années.</p>`;
+    const W = 700, Hh = 120, pad = 22;
+    const end = toDate(meta.today), start = new Date(end); start.setFullYear(end.getFullYear() - 2);
+    const x = (dt) => pad + (W - 2 * pad) * (dt - start) / (end - start);
+    const y = (cut) => Hh - 18 - (Hh - 30) * cut / 100;
+    const bars = sales.map(([s, e, cut]) => {
+      const x0 = Math.max(pad, x(toDate(s))), x1 = Math.min(W - pad, x(e ? toDate(e) : end));
+      return `<rect x="${x0.toFixed(1)}" y="${y(cut).toFixed(1)}" width="${Math.max(2, x1 - x0).toFixed(1)}" height="${(Hh - 18 - y(cut)).toFixed(1)}" rx="2" fill="#22d3ee"><title>−${cut} % à partir du ${dLong.format(toDate(s))}</title></rect>`;
+    }).join("");
+    // repères au 1er janvier de chaque année visible
+    const ticks = [];
+    for (let yr = start.getFullYear() + 1; yr <= end.getFullYear(); yr++) {
+      const dt = new Date(yr, 0, 1);
+      ticks.push(`<line x1="${x(dt).toFixed(1)}" x2="${x(dt).toFixed(1)}" y1="${Hh - 18}" y2="${Hh - 13}" stroke="#6f7884"/><text x="${x(dt).toFixed(1)}" y="${Hh - 2}" fill="#6f7884" font-size="12" text-anchor="middle">1er janv. ${yr}</text>`);
+    }
+    const grid = [25, 50, 75, 100].map((c) => `<line x1="${pad}" x2="${W - pad}" y1="${y(c)}" y2="${y(c)}" stroke="#2a2f38"/><text x="0" y="${y(c) + 4}" fill="#6f7884" font-size="11">−${c}</text>`).join("");
+    return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${sales.length} promos sur 2 ans">${grid}<line x1="${pad}" x2="${W - pad}" y1="${Hh - 18}" y2="${Hh - 18}" stroke="#3a414c"/>${bars}${ticks.join("")}</svg>`;
+  }
+
+  async function openSheet(appid) {
+    const g = games.find((x) => x.appid === appid);
+    if (!g) return;
+    $("sheetBody").innerHTML = `<p>Chargement…</p>`;
+    if (!$("sheet").open) $("sheet").showModal();
+    let d;
+    try { d = await details(appid); } catch { d = null; }
+    if (!d) { $("sheetBody").innerHTML = `<p>Impossible de charger ce jeu.</p>`; return; }
+    history.replaceState(null, "", `#app=${appid}`);
+    const shop = d.best && d.best.price < d.price ? (meta.shops[String(d.best.shop)] || "une autre boutique") : null;
+    $("sheetBody").innerHTML = `
+      <div class="sheet-head">
+        <div><h3 id="sheetTitle">${esc(d.name)}</h3>
+          <p class="by">${esc([d.dev, d.pub].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(" · "))}${d.positive != null ? ` · ${d.positive} % d'avis positifs` : ""}</p></div>
+        <button class="close" type="button" aria-label="Fermer">×</button>
+      </div>
+      <div class="now"><span class="big">${eur(d.price)}</span>${d.cut > 0 ? `<span class="old">${eur(d.regular)}</span><span class="pill cyan">−${d.cut} %</span>` : `<span class="small">prix normal sur Steam France</span>`}</div>
+      ${shop ? `<p class="small">Moins cher aujourd'hui chez ${esc(shop)} : ${eur(d.best.price)}.</p>` : ""}
+      ${forecastHtml(d)}
+      <div class="stats">
+        <div class="stat"><b>${d.n_sales_year}</b><span>promos Steam sur les 12 derniers mois</span></div>
+        <div class="stat"><b>${d.max_cut ? `−${d.max_cut} %` : "—"}</b><span>plus forte réduction Steam</span></div>
+        <div class="stat"><b>${eur(d.low)}</b><span>plus bas prix connu, toutes boutiques</span></div>
+        <div class="stat"><b>${d.last_sale ? dDay.format(toDate(d.last_sale)) : "—"}</b><span>début de la dernière promo</span></div>
+      </div>
+      <div class="block timeline"><h4>Ses promos Steam sur 2 ans</h4><p class="small">Chaque barre est une promo : sa largeur, la durée ; sa hauteur, la réduction.</p>${timelineSvg(d.sales || [])}</div>
+      <div class="links"><a href="https://store.steampowered.com/app/${appid}/" rel="noopener" target="_blank">Voir sur Steam</a><a href="#fiabilite" data-close>D'où viennent ces prévisions&nbsp;?</a></div>`;
+  }
+
+  function closeSheet() {
+    if ($("sheet").open) $("sheet").close();
+    history.replaceState(null, "", location.pathname);
+  }
+
+  // ---------------- fiabilité ----------------
+  function reliability() {
+    const m = meta.model;
+    if (!m || !m.evaluations || !m.evaluations.length) {
+      $("relIntro").textContent = "Le modèle n'a pas encore assez d'historique pour être évalué.";
+      return;
+    }
+    $("relIntro").innerHTML = `Le modèle a appris sur l'historique de ${nf.format(m.games)} jeux jusqu'au ${dLong.format(toDate(m.test_from))}, puis on a vérifié ses prévisions sur les 6 mois suivants, qu'il n'avait jamais vus.` +
+      (m.published ? "" : ` <strong>Prévisions non publiées aujourd'hui</strong> : ${esc(m.reason)}.`);
+    const rows = m.evaluations.map((e) => {
+      const top = e.calibration[e.calibration.length - 1];
+      return `<tr><td>d'ici ${e.horizon_days} jours</td><td class="num">${Math.round(e.auc * 100)} / 100</td><td class="num">${Math.round(e.naive_auc * 100)} / 100</td>
+        <td class="num">${top && top.n ? `${Math.round(top.observed * 100)} sur 100` : "—"}</td></tr>`;
+    }).join("");
+    const r = m.depth_rule;
+    $("relBody").innerHTML = `
+      <div class="scroll"><table class="rel"><thead><tr><th>Promo…</th><th class="num">Score du modèle</th><th class="num">« Au rythme de l'an dernier »</th><th class="num">Quand il annonce plus de 80 %, la promo est arrivée</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="note" style="margin-top:12px">Score : sur 100 paires (un jeu qui a eu une promo dans la période, un qui n'en a pas eu), combien de fois le modèle donne la plus forte chance au bon. Au hasard : 50.</p>
+      ${r ? `<p class="note">Réduction attendue : on reprend celle de la dernière promo. Sur les 6 derniers mois, c'était <strong>exactement la bonne ${Math.round(r.exact * 100)} fois sur 100</strong>, et dans la fourchette des 3 dernières promos ${Math.round(r.in_range * 100)} fois sur 100. Un modèle de machine learning testé à la place faisait moins bien : la plupart des éditeurs répètent la même réduction.</p>` : ""}`;
+  }
+
+  // ---------------- démarrage ----------------
+  async function init() {
+    try {
+      const [m, idx] = await Promise.all([getJson("data/catalog/meta.json"), getJson("data/catalog/index.json")]);
+      meta = m;
+      const c = Object.fromEntries(idx.columns.map((k, i) => [k, i]));
+      games = idx.games.map((r) => ({ appid: r[c.appid], name: r[c.name], key: norm(r[c.name]), owners: r[c.owners],
+        price: r[c.price], cut: r[c.cut], p30: r[c.p30], expected: r[c.expected_cut] }));
+    } catch {
+      $("lede").textContent = "Le catalogue n'est pas encore disponible : il se construit en quelques jours à partir de l'historique IsThereAnyDeal.";
+      $("relIntro").textContent = "";
+      document.querySelector("main").hidden = true;
+      return;
+    }
+    const soon = games.filter((g) => g.cut === 0 && g.p30 != null && g.p30 >= 60).length;
+    const onSale = games.filter((g) => g.cut > 0).length;
+    $("lede").innerHTML = `<strong>${nf.format(games.length)}</strong> jeux Steam suivis. <strong>${nf.format(onSale)}</strong> sont en promo maintenant, et pour <strong>${nf.format(soon)}</strong> autres une promo est probable dans les 30 jours.`;
+    $("stamp").textContent = `Mis à jour le ${dLong.format(new Date(meta.generated_at))}. Prix Steam France, en euros.`;
+    const major = (meta.upcoming_major_sales || [])[0];
+    if (major) {
+      const days = Math.round((toDate(major.start) - toDate(meta.today)) / 864e5);
+      $("banner").innerHTML = `<strong>${esc(major.name)}</strong> le ${dDay.format(toDate(major.start))}${days > 0 ? `, dans ${days} jours` : ""}. La plupart des jeux populaires y passent en promo.`;
+      $("banner").hidden = false;
+    }
+    if (!soon) { filter = "all"; document.querySelectorAll(".chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === "all"))); }
+    render();
+    reliability();
+
+    $("q").addEventListener("input", () => { shown = PAGE; if ($("q").value && filter === "soon") setFilter("all", false); render(); });
+    document.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => setFilter(b.dataset.filter, true)));
+    $("more").addEventListener("click", () => { shown += PAGE; render(); });
+    $("results").addEventListener("click", (e) => { const row = e.target.closest(".row"); if (row) openSheet(Number(row.dataset.app)); });
+    $("sheet").addEventListener("click", (e) => {
+      if (e.target === $("sheet") || e.target.closest(".close")) closeSheet();
+      if (e.target.closest("[data-close]")) closeSheet();
+    });
+    $("sheet").addEventListener("close", () => history.replaceState(null, "", location.pathname + (location.hash.startsWith("#app=") ? "" : location.hash)));
+    const m = location.hash.match(/^#app=(\d+)/);
+    if (m) openSheet(Number(m[1]));
+  }
+
+  function setFilter(f, rerender) {
+    filter = f; shown = PAGE;
+    document.querySelectorAll(".chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === f)));
+    if (rerender) render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

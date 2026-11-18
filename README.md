@@ -1,8 +1,8 @@
 # Deal Hunter
 
-Les promos sur les jeux PC, comparées entre une trentaine de boutiques, avec l'historique des prix pour savoir si une promo vaut vraiment le coup, une **prévision de baisse de prix à 14 jours** par machine learning, une recherche en langage naturel (« un roguelike pas cher pour jouer à deux ») et un résumé IA « Le jeu en bref » pour chaque jeu.
+Les promos sur les jeux PC, comparées entre une dizaine de boutiques, avec l'historique des prix pour savoir si une promo vaut vraiment le coup, une **prévision de baisse de prix à 14 jours** par machine learning, une **zone Prévisions** qui dit, pour tout le catalogue Steam payant, quand la prochaine promo a des chances d'arriver et de combien, une recherche en langage naturel (« un roguelike pas cher pour jouer à deux ») et un résumé IA « Le jeu en bref » pour chaque jeu.
 
-**Site : https://slfire.github.io/deal-hunter/** · [Les chiffres du marché](https://slfire.github.io/deal-hunter/insights.html) · [Santé du pipeline](https://slfire.github.io/deal-hunter/sante.html) · [Documentation des données](https://slfire.github.io/deal-hunter/docs/)
+**Site : https://slfire.github.io/deal-hunter/** · [Prévisions de promos](https://slfire.github.io/deal-hunter/prevision.html) · [Les chiffres du marché](https://slfire.github.io/deal-hunter/insights.html) · [Santé du pipeline](https://slfire.github.io/deal-hunter/sante.html) · [Documentation des données](https://slfire.github.io/deal-hunter/docs/)
 
 Le projet est un pipeline de données complet qui tourne seul chaque matin, sans serveur et sans coût : ingestion de cinq sources, warehouse DuckDB modélisé et testé avec dbt, modèle de prédiction réentraîné chaque jour avec garde-fou qualité, embeddings et LLM pour la partie IA, lake Parquet, observabilité, et publication d'un site statique.
 
@@ -87,6 +87,25 @@ Lignage et description de chaque colonne : [documentation dbt](https://slfire.gi
 
 **Les limites.** Le modèle ne connaît pas les soldes annoncés (aucune grande soldes Steam n'est encore tombée dans l'historique), et 21 jours de données, c'est peu : les scores évolueront.
 
+## v3 : le catalogue complet et la prochaine promo
+
+**Les données.** Le catalogue des jeux Steam payants vient de SteamSpy (≈ 75 000 jeux, rafraîchi chaque mois : l'ancienne liste publique de Steam a été fermée). Pour chacun, l'historique complet de ses prix Steam France vient d'IsThereAnyDeal (une requête par jeu, rattrapage étalé sur une vingtaine d'heures par le workflow « Historique IsThereAnyDeal », 800 requêtes / 5 min). Ensuite, les prix du jour de tout le catalogue sont relevés chaque matin (200 jeux par requête) et **seuls les changements sont écrits** : quelques milliers de lignes par jour au lieu de 75 000. Tout est stocké en Parquet par petits morceaux jamais réécrits, pour que le repo git ne gonfle pas.
+
+**Les grandes soldes Steam ne sont écrites nulle part à la main** : un jour où plus de 25 % des jeux démarrent une promo, c'est une grande soldes (`dim_steam_major_sales`). Sur les jeux populaires, les soldes d'été, d'automne, d'hiver et de printemps sortent toutes seules, avec ~70 % des jeux. Les soldes à venir viennent du calendrier annoncé par Valve (`data/ref/steam_sales_calendar.json`, **à compléter chaque année**).
+
+**Quand ?** Pour un jeu qui n'est pas en promo, un modèle par horizon (14, 30, 60, 90 jours) donne la probabilité qu'une promo commence. Exemples d'entraînement : une date toutes les 4 semaines par jeu sur 4 ans, avec uniquement ce qui était connu ce jour-là (nombre de promos sur l'année, écart habituel entre deux promos, jours depuis la dernière, prochaine grande soldes…). **Évaluation dans le temps** : entraînement sur tout ce qui précède les 6 derniers mois, test sur ces 6 mois. Sur les ~3 000 jeux les plus joués (novembre 2026) :
+
+| Promo… | AUC du modèle | Référence « au rythme de l'an dernier » |
+|---|---|---|
+| d'ici 14 jours | 0,92 | 0,72 |
+| d'ici 30 jours | 0,93 | 0,83 |
+| d'ici 60 jours | 0,96 | 0,92 |
+| d'ici 90 jours | 0,97 | 0,96 |
+
+**De combien ?** Une **règle**, pas un modèle : la réduction de la dernière promo, avec en fourchette les 3 dernières. Elle tombe juste 71 % du temps, et dans la fourchette 84 % du temps. Un modèle de gradient boosting testé à la place faisait un peu moins bien (erreur moyenne 3,7 points contre 3,5) : la plupart des éditeurs répètent exactement la même réduction. Quand une règle simple bat le machine learning, on garde la règle.
+
+**Garde-fou.** Rien n'est publié si le modèle à 30 jours a une AUC < 0,75. Les scores sont recalculés chaque jour et affichés en bas de la page Prévisions.
+
 ## La partie IA
 
 **Recherche en langage naturel.** Chaque jeu est résumé en un texte (tags joueurs en tête, genres, mode coop, développeur, description) puis transformé en vecteur par `multilingual-e5-small` (ONNX quantifié, stocké en int8). Dans le navigateur, les contraintes de la phrase deviennent de vrais filtres (« pas cher », « à deux », « bien noté »…), le reste est vectorisé sur place avec Transformers.js et **exactement le même fichier de modèle**. Le score combine proximité de sens, mots retrouvés dans les tags et un léger bonus qualité. Aucune clé, aucun serveur.
@@ -136,6 +155,7 @@ python -m pytest                                   # tests
 
 ## Prochaines étapes
 
+- Réévaluer les modèles v3 sur tout le catalogue (les petits jeux font moins de promos que les jeux populaires).
 - Premier bilan réel des prédictions publiées, à partir du 30 novembre 2026.
 - Ajouter la proximité des grandes soldes Steam comme variable, une fois que les soldes d'hiver seront dans l'historique.
 

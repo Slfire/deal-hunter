@@ -20,11 +20,12 @@ Usage :
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import date, datetime, timezone
 
 from common import log, setup_logging
-from itad_common import COUNTRY, PRICES_DIR, STEAM_SHOP_ID, Itad, ItadError, itad_ids, write_part
+from itad_common import COUNTRY, ITAD_DIR, PRICES_DIR, STEAM_SHOP_ID, Itad, ItadError, itad_ids, write_part
 
 import duckdb
 
@@ -78,6 +79,20 @@ def last_state() -> dict[str, tuple]:
     return {r[0]: tuple(r[1:]) for r in rows}
 
 
+def save_shops(itad: Itad) -> None:
+    """Noms des boutiques (id ITAD -> nom), pour afficher « meilleur prix chez GOG » sur le site."""
+    path = ITAD_DIR / "shops.json"
+    try:
+        shops = {str(s["id"]): s["title"] for s in itad.request("GET", "/service/shops/v1", params={"country": COUNTRY})}
+    except (ItadError, KeyError, TypeError) as exc:
+        log.warning("Liste des boutiques non mise à jour : %s", exc)
+        return
+    text = json.dumps(shops, ensure_ascii=False, indent=0, sort_keys=True)
+    if not path.exists() or path.read_text(encoding="utf-8") != text:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
 def main() -> int:
     setup_logging()
     games = sorted(set(itad_ids().values()))
@@ -94,6 +109,7 @@ def main() -> int:
         log.error("%s", exc)
         return 1
 
+    save_shops(itad)
     current: dict[str, tuple] = {}
     for k in range(0, len(games), BATCH):
         try:

@@ -118,9 +118,17 @@ jobs:
         continue-on-error: true      # si le modèle échoue ou n'est pas assez fiable, le site garde son verdict habituel
         run: python src/ml/predict_drops.py
 
+      - name: Prévision des prochaines promos du catalogue (modèle ML v3)
+        continue-on-error: true      # sans historique IsThereAnyDeal, la zone Prévisions attend simplement
+        run: python src/ml/predict_next_sale.py
+
       # ---------- publication ----------
       - name: Exporter les données du site (+ chiffres du marché)
         run: python src/export/export_site_data.py
+
+      - name: Exporter le catalogue (zone Prévisions)
+        continue-on-error: true
+        run: python src/export/export_catalog.py
 
       - name: Cache du modèle d'IA (téléchargé une seule fois)
         uses: actions/cache@v4

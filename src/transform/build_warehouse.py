@@ -19,6 +19,7 @@ Usage :
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -140,6 +141,43 @@ def load_reference(con: duckdb.DuckDBPyConnection) -> None:
         log.info("raw.%-13s %d fiches de référence", name, len(files))
 
 
+# v3 : catalogue Steam complet et historique IsThereAnyDeal, stockés en Parquet « par morceaux »
+# (voir src/ingestion/itad_common.py). Relus en entier à chaque run : DuckDB lit des millions de lignes
+# Parquet en quelques secondes, inutile de charger en incrémental.
+PARQUET_SOURCES = {
+    # table raw : (motif des fichiers, colonnes si aucun fichier n'existe encore)
+    "steam_catalog": ("ref/catalog/steam_catalog_*.parquet",
+                      "appid INTEGER, name VARCHAR, developer VARCHAR, publisher VARCHAR, owners_min BIGINT, owners_max BIGINT, "
+                      "positive INTEGER, negative INTEGER, reviews INTEGER, price_usd_cents INTEGER, initial_price_usd_cents INTEGER, ccu INTEGER"),
+    "itad_ids": ("ref/itad/ids/part-*.parquet", "appid INTEGER, itad_id VARCHAR, looked_up_at TIMESTAMP"),
+    "itad_history": ("ref/itad/history/part-*.parquet",
+                     "itad_id VARCHAR, changed_at TIMESTAMP, price_cents INTEGER, regular_cents INTEGER, cut SMALLINT"),
+    "itad_prices": ("raw/itad_prices/*/changes.parquet",
+                    "itad_id VARCHAR, captured_at TIMESTAMP, steam_price_cents INTEGER, steam_regular_cents INTEGER, steam_cut SMALLINT, "
+                    "best_price_cents INTEGER, best_regular_cents INTEGER, best_cut SMALLINT, best_shop_id INTEGER, low_all_cents INTEGER"),
+}
+
+
+def load_parquet_sources(con: duckdb.DuckDBPyConnection) -> None:
+    data_dir = PROJECT_ROOT / "data"
+    for table, (pattern, columns) in PARQUET_SOURCES.items():
+        files = sorted(data_dir.glob(pattern))
+        if files:
+            con.execute(f"CREATE OR REPLACE TABLE raw.{table} AS SELECT * FROM read_parquet(?, union_by_name = true)",
+                        [[str(f) for f in files]])
+        else:
+            con.execute(f"CREATE OR REPLACE TABLE raw.{table} ({columns})")
+        log.info("raw.%-13s %d fichiers, %d lignes", table, len(files), count(con, f"raw.{table}"))
+
+    # calendrier des grandes soldes Steam annoncées (sert à prévoir les promos à venir)
+    con.execute("CREATE OR REPLACE TABLE raw.steam_sales_calendar (name VARCHAR, start_date DATE, end_date DATE)")
+    calendar = REF_DIR / "steam_sales_calendar.json"
+    if calendar.exists():
+        sales = json.loads(calendar.read_text(encoding="utf-8")).get("sales", [])
+        con.executemany("INSERT INTO raw.steam_sales_calendar VALUES (?, ?, ?)",
+                        [[x["name"], x["start"], x["end"]] for x in sales])
+
+
 def run_dbt() -> bool:
     from dbt.cli.main import dbtRunner
 
@@ -196,6 +234,7 @@ def main() -> int:
         load_incremental(con, "games", sorted(RAW_DIR.glob("games/*/*/batch_*.json*")), KEYED_SELECT)
         load_incremental(con, "steam_prices", sorted(RAW_DIR.glob("steam_prices/*/*/batch_*.json*")), KEYED_SELECT)
         load_reference(con)
+        load_parquet_sources(con)
     finally:
         con.close()   # dbt a besoin d'ouvrir la base à son tour
 

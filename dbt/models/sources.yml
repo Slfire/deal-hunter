@@ -19,3 +19,13 @@ sources:
         description: "Tags utilisateurs SteamSpy (cache data/ref/steamspy)"
       - name: game_briefs
         description: "« Le jeu en bref » : résumés IA de la fiche Steam et des tags (cache data/ref/game_briefs, GitHub Models)"
+      - name: steam_catalog
+        description: "v3 — catalogue des jeux Steam payants (SteamSpy, data/ref/catalog), rafraîchi chaque mois"
+      - name: itad_ids
+        description: "v3 — correspondance appid Steam -> identifiant IsThereAnyDeal (morceaux data/ref/itad/ids)"
+      - name: itad_history
+        description: "v3 — historique complet des prix Steam France par jeu (IsThereAnyDeal, morceaux data/ref/itad/history)"
+      - name: itad_prices
+        description: "v3 — journal quotidien des prix du catalogue, seulement les changements (data/raw/itad_prices)"
+      - name: steam_sales_calendar
+        description: "Calendrier des grandes soldes Steam annoncées par Valve (data/ref/steam_sales_calendar.json)"
