@@ -64,5 +64,16 @@
   "auc": 0.813,
   "average_precision": 0.4644,
   "brier": 0.0943
+ },
+ {
+  "date": "2026-11-22",
+  "published": true,
+  "reason": "ok",
+  "rows": 23705,
+  "games": 3086,
+  "base_rate": 0.1424,
+  "auc": 0.8123,
+  "average_precision": 0.4702,
+  "brier": 0.0978
  }
 ]
