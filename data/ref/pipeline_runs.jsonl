@@ -38,3 +38,4 @@
 {"run_id": "45312212700", "date": "2026-11-24T02:43+00:00", "duration_min": 17.7, "games": 1415, "deals": 3060, "tests_pass": 45, "tests_warn": 0, "tests_fail": 0}
 {"run_id": "45646911415", "date": "2026-11-25T15:54+00:00", "duration_min": 17.4, "games": 1482, "deals": 3058, "tests_pass": 45, "tests_warn": 0, "tests_fail": 0}
 {"run_id": "45847016024", "date": "2026-11-26T15:28+00:00", "duration_min": 13.1, "games": 1503, "deals": 3060, "tests_pass": 45, "tests_warn": 0, "tests_fail": 0}
+{"run_id": "46021494779", "date": "2026-11-27T15:17+00:00", "duration_min": 12.8, "games": 1532, "deals": 3060, "tests_pass": 45, "tests_warn": 0, "tests_fail": 0}
